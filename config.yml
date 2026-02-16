@@ -32,7 +32,7 @@ style:
   points_color: "#ff8c42"
   points_size: 8
   points_alpha: 0.8
-  top20_icon_zoom: 0.2
+  top20_icon_zoom: 0.08
   padding_pct: 0.02
 
 sector_classification:

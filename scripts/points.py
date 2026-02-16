@@ -42,31 +42,53 @@ def _load_icon(path: Path):
     return mpimg.imread(path)
 
 
+def _primary_subpart(subparts: str) -> str:
+    parts = [part.strip().upper() for part in str(subparts or "").split(",") if part.strip()]
+    return parts[0] if parts else "UNK"
+
+
 def draw_points_with_facility_icons(
     map_ax,
     points_gdf: gpd.GeoDataFrame,
     cfg: dict[str, Any],
 ) -> None:
-    """Draw all facilities with icons; keep unmatched facilities as yellow points."""
+    """Draw top-20 facilities with icons and label all others by primary subpart."""
     style = cfg["style"]
     if points_gdf.empty:
         return
 
     icon_dir = Path(cfg.get("paths", {}).get("icons_dir", "icons"))
-    icon_zoom = float(style.get("top20_icon_zoom", 0.2))
+    icon_zoom = float(style.get("top20_icon_zoom", 0.09))
     default_point_color = style.get("default_points_color", "#ffd84d")
     default_point_size = float(style.get("points_size", 8))
     default_point_alpha = float(style.get("points_alpha", 0.8))
+    non_top20_label_size = float(style.get("non_top20_label_size", 5))
+    non_top20_label_color = style.get("non_top20_label_color", "#dbe8f5")
 
     points = points_gdf.copy()
     if "subparts" not in points.columns:
         points["subparts"] = ""
+    if "_is_top20" not in points.columns:
+        points["_is_top20"] = False
 
     icon_cache: dict[str, Any] = {}
     fallback_x: list[float] = []
     fallback_y: list[float] = []
 
     for _, row in points.iterrows():
+        if not bool(row.get("_is_top20", False)):
+            map_ax.text(
+                row.geometry.x,
+                row.geometry.y,
+                _primary_subpart(row["subparts"]),
+                color=non_top20_label_color,
+                fontsize=non_top20_label_size,
+                ha="center",
+                va="center",
+                zorder=6,
+            )
+            continue
+
         subparts = row["subparts"]
         icon_key = _pick_icon_key(subparts)
         icon_name = _ICON_BY_SECTOR.get(icon_key, "manufacturing.jpg")

@@ -58,7 +58,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
 
 
 def render_layout_points(cfg: dict[str, Any]) -> Path:
-    """Render layout with boundary plus facility icons for reporting year 2023."""
+    """Render 2023 layout with top-20 icons and subpart labels for other facilities."""
     emissions_csv = cfg["paths"].get("emissions_csv")
     if not emissions_csv:
         raise ValueError("paths.emissions_csv is not set; cannot render points target.")
@@ -73,6 +73,24 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     lon_col = cfg["paths"].get("emissions_lon_col", "longitude")
     points = emissions_to_gdf(points_df, lat_col=lat_col, lon_col=lon_col)
     points = ensure_crs(points, TARGET_CRS)
+
+    top20_csv = cfg["paths"].get("top20_csv")
+    top20_names: set[str] = set()
+    if top20_csv:
+        top20_df = load_emissions_csv(top20_csv)
+        if "facility_name" in top20_df.columns:
+            top20_names = {
+                str(name).strip().casefold()
+                for name in top20_df["facility_name"].dropna().tolist()
+                if str(name).strip()
+            }
+
+    if "facility_name" in points.columns and top20_names:
+        points["_is_top20"] = (
+            points["facility_name"].astype(str).str.strip().str.casefold().isin(top20_names)
+        )
+    else:
+        points["_is_top20"] = False
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
