@@ -12,7 +12,6 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
-from rasterio.merge import merge
 from rasterio.transform import Affine
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 from rasterio.windows import Window, from_bounds, transform as window_transform
