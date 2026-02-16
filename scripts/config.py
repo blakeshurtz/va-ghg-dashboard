@@ -87,6 +87,13 @@ def validate_config(cfg: dict[str, Any]) -> None:
                 "Set paths.emissions_csv to null/empty to skip points rendering."
             )
 
+
+    top20_csv = paths.get("top20_csv")
+    if top20_csv is not None and str(top20_csv).strip():
+        top20_path = Path(str(top20_csv))
+        if not top20_path.exists():
+            raise FileNotFoundError(f"Configured top-20 CSV not found: {top20_path}")
+
     missing_style = REQUIRED_STYLE_KEYS - set(style)
     if missing_style:
         raise ValueError(f"Missing style keys: {sorted(missing_style)}")
