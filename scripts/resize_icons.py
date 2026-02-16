@@ -35,7 +35,7 @@ def resize_icons(input_dir: Path, output_dir: Path, max_size_px: int) -> int:
 
     icon_paths: list[Path] = []
     for pattern in DEFAULT_EXTENSIONS:
-        icon_paths.extend(sorted(input_dir.glob(pattern)))
+        icon_paths.extend(sorted(input_dir.rglob(pattern)))
 
     processed = 0
     for icon_path in icon_paths:
@@ -50,7 +50,11 @@ def resize_icons(input_dir: Path, output_dir: Path, max_size_px: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate small icon versions for map labels")
-    parser.add_argument("--input-dir", default="icons", help="Directory containing source icons")
+    parser.add_argument(
+        "--input-dir",
+        default="icons/original",
+        help="Directory containing source icons",
+    )
     parser.add_argument(
         "--output-dir",
         default="icons/small",

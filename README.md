@@ -62,7 +62,7 @@ conda activate va-ghg
 To avoid oversized map symbols, create small icon variants once and keep rendering pointed at `icons/small`:
 
 ```bash
-python -m scripts.resize_icons --input-dir icons --output-dir icons/small --max-size-px 28
+python -m scripts.resize_icons --input-dir icons/original --output-dir icons/small --max-size-px 28
 ```
 
 Render both targets:
