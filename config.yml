@@ -21,7 +21,7 @@ paths:
   emissions_lat_col: latitude
   emissions_lon_col: longitude
   top20_csv: data/top_20.csv
-  icons_dir: icons
+  icons_dir: icons/small
 
 style:
   background: "#0b0f14"
