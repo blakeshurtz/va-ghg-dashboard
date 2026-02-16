@@ -12,9 +12,10 @@ from scripts.io import (
     ensure_crs,
     load_emissions_csv,
     load_va_boundary,
+    load_vector_layer,
 )
 from scripts.layout import apply_dark_theme, create_canvas
-from scripts.map_base import draw_boundary, set_extent_to_boundary
+from scripts.map_base import draw_boundary, draw_pipelines, set_extent_to_boundary
 from scripts.points import draw_points_with_facility_icons
 
 TARGET_CRS = "EPSG:3857"
@@ -38,6 +39,16 @@ def _load_boundary_3857(cfg: dict[str, Any]):
     return ensure_crs(boundary, TARGET_CRS)
 
 
+def _load_pipelines_3857(cfg: dict[str, Any]):
+    pipelines_path = cfg["paths"].get("pipelines")
+    if not pipelines_path:
+        return None
+
+    layer = cfg["paths"].get("pipelines_layer")
+    pipelines = load_vector_layer(pipelines_path, layer=layer)
+    return ensure_crs(pipelines, TARGET_CRS)
+
+
 def _save_figure(fig, path: Path, dpi: int) -> None:
     fig.savefig(path, dpi=dpi, bbox_inches="tight", pad_inches=0)
     plt.close(fig)
@@ -47,10 +58,13 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
     """Render layout base map with boundary and blank panel."""
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
+    pipelines = _load_pipelines_3857(cfg)
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
     draw_boundary(map_ax, boundary, cfg)
+    if pipelines is not None:
+        draw_pipelines(map_ax, pipelines, boundary, cfg)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 
     _save_figure(fig, paths["base_png"], int(cfg["render"]["dpi"]))
@@ -65,6 +79,7 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
 
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
+    pipelines = _load_pipelines_3857(cfg)
 
     points_df = load_emissions_csv(emissions_csv)
     if "reporting_year" in points_df.columns:
@@ -95,6 +110,8 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
     draw_boundary(map_ax, boundary, cfg)
+    if pipelines is not None:
+        draw_pipelines(map_ax, pipelines, boundary, cfg)
     draw_points_with_facility_icons(map_ax, points, cfg)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 

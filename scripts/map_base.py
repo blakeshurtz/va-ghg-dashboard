@@ -21,6 +21,27 @@ def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -
     )
 
 
+def draw_pipelines(
+    map_ax,
+    pipelines_gdf: gpd.GeoDataFrame,
+    boundary_gdf: gpd.GeoDataFrame,
+    cfg: dict[str, Any],
+) -> None:
+    """Draw natural gas pipelines clipped to the boundary extent."""
+    style = cfg["style"]
+    clipped = gpd.clip(pipelines_gdf, boundary_gdf)
+    if clipped.empty:
+        return
+
+    clipped.plot(
+        ax=map_ax,
+        color=style.get("pipelines_color", "#4ba3c7"),
+        linewidth=float(style.get("pipelines_linewidth", 0.4)),
+        alpha=float(style.get("pipelines_alpha", 0.5)),
+        zorder=float(style.get("pipelines_zorder", 2)),
+    )
+
+
 def set_extent_to_boundary(
     map_ax,
     boundary_gdf: gpd.GeoDataFrame,

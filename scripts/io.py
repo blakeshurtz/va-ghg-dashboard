@@ -19,6 +19,15 @@ def load_va_boundary(path: str) -> gpd.GeoDataFrame:
     return gdf
 
 
+def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
+    """Load a geospatial layer from a vector file (GeoJSON/GPKG/shapefile)."""
+    gdf = gpd.read_file(path, layer=layer) if layer else gpd.read_file(path)
+    if gdf.empty:
+        layer_msg = f" (layer='{layer}')" if layer else ""
+        raise ValueError(f"Vector file '{path}'{layer_msg} is empty.")
+    return gdf
+
+
 def load_emissions_csv(path: str) -> pd.DataFrame:
     """Load emissions CSV data into a DataFrame."""
     try:
