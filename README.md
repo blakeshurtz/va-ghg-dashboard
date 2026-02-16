@@ -2,7 +2,7 @@
 
 A geospatial rendering pipeline for producing dark-theme dashboard layout artifacts of Virginia industrial greenhouse gas (GHG) facilities.
 
-The project currently generates PNG layout outputs (base map + points overlay) using configurable data paths and style settings, including icon overlays for top-20 facilities.
+The project currently generates PNG layout outputs (base map + points overlay) using configurable data paths and style settings, including per-facility icon overlays for reporting year 2023.
 
 ---
 
@@ -13,7 +13,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Renders a 16:9 map + right-side panel layout in dark theme.
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + facility points plus top-20 icons (`layout_points_top20_icons.png`)
+  - **points**: boundary + 2023 facility icons (`layout_points_top20_icons.png`)
 
 ---
 
