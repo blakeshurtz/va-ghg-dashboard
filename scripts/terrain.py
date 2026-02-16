@@ -12,7 +12,6 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
-from rasterio.merge import merge
 from rasterio.transform import Affine
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 from rasterio.windows import Window, from_bounds, transform as window_transform
@@ -73,7 +72,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
 
     va_boundary = _load_boundary(boundary_path)
     mosaic_path = processed_dir / "dem_va_mosaic.tif"
-    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata)
+    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata, boundary=va_boundary)
 
     cropped_path = processed_dir / "dem_va_mosaic_cropped.tif"
     _crop_dem_to_boundary_bounds(
@@ -144,32 +143,80 @@ def _load_boundary(boundary_path: Path) -> gpd.GeoDataFrame:
     return boundary
 
 
-def _mosaic_tiles_to_tif(tif_paths: list[Path], out_path: Path, nodata: float) -> None:
+def _mosaic_tiles_to_tif(
+    tif_paths: list[Path],
+    out_path: Path,
+    nodata: float,
+    boundary: gpd.GeoDataFrame,
+) -> None:
     with ExitStack() as stack:
         datasets = [stack.enter_context(rasterio.open(path)) for path in tif_paths]
-        mosaic, transform = merge(datasets, nodata=nodata)
-        crs = datasets[0].crs
+        first = datasets[0]
 
-    dem = mosaic[0].astype("float32", copy=False)
-    dem[~np.isfinite(dem)] = nodata
+        if first.crs is None:
+            raise ValueError(f"DEM tile has no CRS: {tif_paths[0]}")
 
-    with rasterio.open(
-        out_path,
-        "w",
-        driver="GTiff",
-        height=dem.shape[0],
-        width=dem.shape[1],
-        count=1,
-        dtype="float32",
-        crs=crs,
-        transform=transform,
-        nodata=nodata,
-        compress="lzw",
-        tiled=True,
-        blockxsize=512,
-        blockysize=512,
-    ) as dst:
-        dst.write(dem, 1)
+        for idx, ds in enumerate(datasets[1:], start=1):
+            if ds.crs != first.crs:
+                raise ValueError(
+                    "All terrain DEM tiles must share the same CRS before mosaicing. "
+                    f"Tile {tif_paths[idx]} has {ds.crs}, expected {first.crs}."
+                )
+
+        bounds = transform_bounds(
+            boundary.crs,
+            first.crs,
+            *boundary.total_bounds,
+            densify_pts=21,
+        )
+        left, bottom, right, top = bounds
+
+        x_res = abs(float(first.transform.a))
+        y_res = abs(float(first.transform.e))
+        if x_res <= 0 or y_res <= 0:
+            raise ValueError(f"Invalid DEM resolution for tile {tif_paths[0]}: ({x_res}, {y_res})")
+
+        width = int(np.ceil((right - left) / x_res))
+        height = int(np.ceil((top - bottom) / y_res))
+        transform = Affine(x_res, 0.0, left, 0.0, -y_res, top)
+        crs = first.crs
+
+        if width <= 0 or height <= 0:
+            raise ValueError("Boundary does not overlap DEM extent.")
+
+        with rasterio.open(
+            out_path,
+            "w",
+            driver="GTiff",
+            height=height,
+            width=width,
+            count=1,
+            dtype="float32",
+            crs=crs,
+            transform=transform,
+            nodata=nodata,
+            compress="lzw",
+            tiled=True,
+            blockxsize=512,
+            blockysize=512,
+        ) as dst:
+            for window in _iter_windows(width, height, 1024):
+                fill = np.full((int(window.height), int(window.width)), nodata, dtype="float32")
+                dst.write(fill, 1, window=window)
+
+            for ds in datasets:
+                reproject(
+                    source=rasterio.band(ds, 1),
+                    destination=rasterio.band(dst, 1),
+                    src_transform=ds.transform,
+                    src_crs=ds.crs,
+                    src_nodata=nodata,
+                    dst_transform=transform,
+                    dst_crs=crs,
+                    dst_nodata=nodata,
+                    resampling=Resampling.nearest,
+                    init_dest_nodata=False,
+                )
 
     _log_raster("Mosaic", out_path)
 
