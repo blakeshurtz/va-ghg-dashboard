@@ -29,9 +29,10 @@ paths:
   pipelines_layer: pipelines_us
 
 crs:
-  map_crs: EPSG:3857
+  map_crs: EPSG:5070
 
 terrain:
+  output_resolution: 90
   nodata_value: -9999
   hillshade_azimuth: 315
   hillshade_altitude: 45
