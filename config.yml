@@ -39,6 +39,9 @@ terrain:
   vertical_exaggeration: 1.0
   tint_strength: 0.25
   dem_resample: bilinear
+  processing_window_size: 1024
+  max_pixels: 120000000
+  max_memory_mb: 2500
 
 style:
   background: "#0b0f14"

@@ -125,6 +125,30 @@ def validate_config(cfg: dict[str, Any]) -> None:
             if output_resolution_value <= 0:
                 raise ValueError("Config key 'terrain.output_resolution' must be > 0 when provided.")
 
+        processing_window_size = terrain.get("processing_window_size")
+        if processing_window_size is not None:
+            try:
+                processing_window_size_value = int(processing_window_size)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Config key 'terrain.processing_window_size' must be an integer when provided."
+                ) from exc
+            if processing_window_size_value <= 0:
+                raise ValueError(
+                    "Config key 'terrain.processing_window_size' must be > 0 when provided."
+                )
+
+        for key in ("max_pixels", "max_memory_mb"):
+            value = terrain.get(key)
+            if value is None:
+                continue
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Config key 'terrain.{key}' must be numeric when provided.") from exc
+            if numeric_value <= 0:
+                raise ValueError(f"Config key 'terrain.{key}' must be > 0 when provided.")
+
     crs = cfg.get("crs")
     if crs is not None:
         if not isinstance(crs, dict):
