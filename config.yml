@@ -18,6 +18,7 @@ layout:
 paths:
   va_boundary: data/boundaries/va_boundary_20m.geojson
   va_boundary_path: data/boundaries/va_boundary_20m.geojson
+  icons_source_dir: icons/original
   terrain_raw_dir: layers/terrain/raw
   terrain_processed_dir: layers/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
@@ -31,6 +32,28 @@ paths:
   primary_roads: layers/primary_roads/primary_roads
   principal_ports: layers/principal_ports/principal_ports/Principal Ports_20250824_022058_chunk0000.geojson
   incorporated_places: layers/incorporated_places/incorporated_places/Incorporated Places_20250824_023605_chunk0000.geojson
+
+icons:
+  default: manufacturing.jpg
+  by_subparts:
+    "C": factory_C.jpg
+    "C,HH": CHH_furnace.jpg
+    "C,Q": CQ_tanks.jpg
+    "C,W": CW_clarifier.jpg
+    "C,S": CS_steel.jpg
+    "C,I": CI_chip.jpg
+    "C,II": CII_fermenter.jpg
+    "AA,C": AAC_logs.jpg
+    "DD": DD_tower.jpg
+    "C,N": CN_bottle.jpg
+    "TT": TT_flask.jpg
+    "FF": coal.jpg
+    "D": power.jpg
+    "C,D": power.jpg
+    "C,G,PP": chemical.jpg
+    "C,H": cement.jpg
+    "C,TT": generation.jpg
+    "AA,C,TT": paper.jpg
 
 crs:
   map_crs: EPSG:5070

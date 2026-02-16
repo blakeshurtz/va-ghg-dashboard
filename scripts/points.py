@@ -10,32 +10,47 @@ import matplotlib.image as mpimg
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
 
-_ICON_BY_SECTOR = {
-    "power": "coal.jpg",
-    "coal": "coal.jpg",
-    "paper": "paper.jpg",
-    "cement": "cement.jpg",
-    "chemical": "chemical.jpg",
-    "manufacturing": "manufacturing.jpg",
-    "generation": "generation.jpg",
+_DEFAULT_ICON_BY_SUBPARTS = {
+    "C": "factory_C.jpg",
+    "C,HH": "CHH_furnace.jpg",
+    "C,Q": "CQ_tanks.jpg",
+    "C,W": "CW_clarifier.jpg",
+    "C,S": "CS_steel.jpg",
+    "C,I": "CI_chip.jpg",
+    "C,II": "CII_fermenter.jpg",
+    "AA,C": "AAC_logs.jpg",
+    "DD": "DD_tower.jpg",
+    "C,N": "CN_bottle.jpg",
+    "TT": "TT_flask.jpg",
+    "FF": "coal.jpg",
+    "D": "power.jpg",
+    "C,D": "power.jpg",
+    "C,G,PP": "chemical.jpg",
+    "C,H": "cement.jpg",
+    "C,TT": "generation.jpg",
+    "AA,C,TT": "paper.jpg",
 }
 
 
-def _pick_icon_key(subparts: str) -> str:
-    codes = {part.strip().upper() for part in str(subparts or "").split(",") if part.strip()}
-    if "FF" in codes:
-        return "coal"
-    if "AA" in codes:
-        return "paper"
-    if "H" in codes:
-        return "cement"
-    if {"G", "PP"} & codes:
-        return "chemical"
-    if "D" in codes:
-        return "power"
-    if "TT" in codes:
-        return "generation"
-    return "manufacturing"
+def _normalize_subparts(subparts: str) -> str:
+    codes = sorted({part.strip().upper() for part in str(subparts or "").split(",") if part.strip()})
+    return ",".join(codes)
+
+
+def _load_icon_mappings(cfg: dict[str, Any]) -> tuple[str, dict[str, str]]:
+    icon_cfg = cfg.get("icons", {})
+    default_icon = str(icon_cfg.get("default", "manufacturing.jpg"))
+
+    raw_mapping = icon_cfg.get("by_subparts", _DEFAULT_ICON_BY_SUBPARTS)
+    mapping: dict[str, str] = {}
+    if isinstance(raw_mapping, dict):
+        for subparts, icon_name in raw_mapping.items():
+            mapping[_normalize_subparts(str(subparts))] = str(icon_name)
+
+    if not mapping:
+        mapping = {key: value for key, value in _DEFAULT_ICON_BY_SUBPARTS.items()}
+
+    return default_icon, mapping
 
 
 def _load_icon(path: Path):
@@ -58,6 +73,7 @@ def draw_points_with_facility_icons(
         return
 
     icon_dir = Path(cfg.get("paths", {}).get("icons_dir", "icons"))
+    default_icon, icon_by_subparts = _load_icon_mappings(cfg)
     icon_zoom = float(style.get("top20_icon_zoom", 0.09))
     default_point_color = style.get("default_points_color", "#ffd84d")
     default_point_size = float(style.get("points_size", 8))
@@ -90,8 +106,8 @@ def draw_points_with_facility_icons(
             continue
 
         subparts = row["subparts"]
-        icon_key = _pick_icon_key(subparts)
-        icon_name = _ICON_BY_SECTOR.get(icon_key, "manufacturing.jpg")
+        normalized_subparts = _normalize_subparts(subparts)
+        icon_name = icon_by_subparts.get(normalized_subparts, default_icon)
         icon_path = icon_dir / icon_name
         if not icon_path.exists():
             fallback_x.append(row.geometry.x)
