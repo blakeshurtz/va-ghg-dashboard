@@ -34,6 +34,7 @@ paths:
   incorporated_places: layers/incorporated_places/incorporated_places/Incorporated Places_20250824_023605_chunk0000.geojson
 
 icons:
+  apply_to_all_facilities: true
   default: manufacturing.jpg
   by_subparts:
     "C": factory_C.jpg
