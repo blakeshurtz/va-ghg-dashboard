@@ -17,6 +17,9 @@ layout:
 
 paths:
   va_boundary: data/boundaries/va_boundary_20m.geojson
+  va_boundary_path: data/boundaries/va_boundary_20m.geojson
+  terrain_raw_dir: data/terrain/raw
+  terrain_processed_dir: data/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
@@ -24,6 +27,17 @@ paths:
   icons_dir: icons/small
   pipelines: layers/natural_gas_pipelines/pipelines_us.gpkg
   pipelines_layer: pipelines_us
+
+crs:
+  map_crs: EPSG:3857
+
+terrain:
+  nodata_value: -9999
+  hillshade_azimuth: 315
+  hillshade_altitude: 45
+  vertical_exaggeration: 1.0
+  tint_strength: 0.25
+  dem_resample: bilinear
 
 style:
   background: "#0b0f14"
