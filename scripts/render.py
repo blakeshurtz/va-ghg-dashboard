@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import rasterio
+from rasterio.warp import transform_bounds
 
 from scripts.io import (
     emissions_to_gdf,
@@ -54,6 +56,33 @@ def _save_figure(fig, path: Path, dpi: int) -> None:
     plt.close(fig)
 
 
+def _draw_terrain_overlay(map_ax, cfg: dict[str, Any]) -> None:
+    """Draw terrain tint PNG aligned to the map CRS when terrain outputs are available."""
+    paths_cfg = cfg.get("paths", {})
+    terrain_processed_dir = Path(paths_cfg.get("terrain_processed_dir", "layers/terrain/processed"))
+    terrain_tint_name = paths_cfg.get("terrain_tint_png", "terrain_tint_va.png")
+    terrain_dem_name = paths_cfg.get("terrain_dem_tif", "dem_va_clipped.tif")
+
+    tint_path = terrain_processed_dir / terrain_tint_name
+    dem_path = terrain_processed_dir / terrain_dem_name
+    if not tint_path.exists() or not dem_path.exists():
+        return
+
+    terrain_img = plt.imread(tint_path)
+    with rasterio.open(dem_path) as dem:
+        if dem.crs is None:
+            return
+        minx, miny, maxx, maxy = transform_bounds(dem.crs, TARGET_CRS, *dem.bounds, densify_pts=21)
+
+    map_ax.imshow(
+        terrain_img,
+        extent=(minx, maxx, miny, maxy),
+        origin="upper",
+        interpolation="bilinear",
+        zorder=float(cfg.get("style", {}).get("terrain_zorder", 0.5)),
+    )
+
+
 def render_layout_base(cfg: dict[str, Any]) -> Path:
     """Render layout base map with boundary and blank panel."""
     paths = _prepare_paths(cfg)
@@ -62,6 +91,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
+    _draw_terrain_overlay(map_ax, cfg)
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
@@ -109,6 +139,7 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
+    _draw_terrain_overlay(map_ax, cfg)
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
