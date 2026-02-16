@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Iterable
 
 import geopandas as gpd
@@ -26,6 +27,42 @@ def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
         layer_msg = f" (layer='{layer}')" if layer else ""
         raise ValueError(f"Vector file '{path}'{layer_msg} is empty.")
     return gdf
+
+
+def load_vector_collection(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
+    """Load one vector layer or combine all vector files found under a directory."""
+    input_path = Path(path)
+    if input_path.is_file():
+        return load_vector_layer(str(input_path), layer=layer)
+
+    if not input_path.is_dir():
+        raise FileNotFoundError(f"Vector input path does not exist: {input_path}")
+
+    vector_paths = sorted(
+        p
+        for p in input_path.rglob("*")
+        if p.is_file() and p.suffix.lower() in {".geojson", ".json", ".gpkg", ".shp"}
+    )
+    if not vector_paths:
+        raise ValueError(f"No supported vector files found under directory: {input_path}")
+
+    gdfs = [load_vector_layer(str(vector_path), layer=layer) for vector_path in vector_paths]
+    base_crs = gdfs[0].crs
+    merged = []
+    for gdf in gdfs:
+        if base_crs is not None and gdf.crs != base_crs:
+            merged.append(gdf.to_crs(base_crs))
+        else:
+            merged.append(gdf)
+
+    combined = gpd.GeoDataFrame(
+        pd.concat(merged, ignore_index=True),
+        geometry="geometry",
+        crs=base_crs,
+    )
+    if combined.empty:
+        raise ValueError(f"Vector input '{input_path}' resolved to zero features.")
+    return combined
 
 
 def load_emissions_csv(path: str) -> pd.DataFrame:
