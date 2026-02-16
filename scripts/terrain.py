@@ -16,7 +16,8 @@ from rasterio.io import MemoryFile
 from rasterio.mask import mask
 from rasterio.merge import merge
 from rasterio.transform import Affine
-from rasterio.warp import calculate_default_transform, reproject
+from rasterio.warp import calculate_default_transform, reproject, transform_bounds
+from rasterio.windows import Window, from_bounds
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,11 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
     vertical_exaggeration = float(terrain_cfg.get("vertical_exaggeration", 1.0))
     tint_strength = float(terrain_cfg.get("tint_strength", 0.25))
     dem_resample = _parse_resampling(str(terrain_cfg.get("dem_resample", "bilinear")))
+    output_resolution = terrain_cfg.get("output_resolution")
+    if output_resolution is not None:
+        output_resolution = float(output_resolution)
+        if output_resolution <= 0:
+            raise ValueError("Config key 'terrain.output_resolution' must be > 0 when provided.")
 
     raw_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +60,15 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
 
     print(f"[OK] Found {len(tif_paths)} DEM tile(s) in {raw_dir.as_posix()}.")
 
+    va_boundary = _load_boundary(boundary_path)
     dem_array, dem_transform, dem_crs = _mosaic_tiles(tif_paths, nodata)
+    dem_array, dem_transform = _crop_dem_to_boundary_bounds(
+        dem_array=dem_array,
+        dem_transform=dem_transform,
+        src_crs=dem_crs,
+        boundary=va_boundary,
+    )
+
     reproj_array, reproj_transform = _reproject_dem(
         dem_array=dem_array,
         src_transform=dem_transform,
@@ -62,6 +76,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
         dst_crs=map_crs,
         nodata=nodata,
         resampling=dem_resample,
+        output_resolution=output_resolution,
     )
 
     clipped_array, clipped_transform = _clip_to_boundary(
@@ -69,7 +84,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
         dem_transform=reproj_transform,
         dem_crs=map_crs,
         nodata=nodata,
-        boundary_path=boundary_path,
+        boundary=va_boundary,
     )
 
     dem_output_path = processed_dir / "dem_va_clipped.tif"
@@ -108,6 +123,15 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
     )
 
 
+def _load_boundary(boundary_path: Path) -> gpd.GeoDataFrame:
+    boundary = gpd.read_file(boundary_path)
+    if boundary.empty:
+        raise ValueError(f"Boundary file is empty: {boundary_path}")
+    if boundary.crs is None:
+        raise ValueError(f"Boundary file has no CRS: {boundary_path}")
+    return boundary
+
+
 def _mosaic_tiles(tif_paths: list[Path], nodata: float) -> tuple[np.ndarray, Affine, Any]:
     with ExitStack() as stack:
         datasets = [stack.enter_context(rasterio.open(path)) for path in tif_paths]
@@ -119,6 +143,35 @@ def _mosaic_tiles(tif_paths: list[Path], nodata: float) -> tuple[np.ndarray, Aff
     return dem, transform, crs
 
 
+def _crop_dem_to_boundary_bounds(
+    dem_array: np.ndarray,
+    dem_transform: Affine,
+    src_crs: Any,
+    boundary: gpd.GeoDataFrame,
+) -> tuple[np.ndarray, Affine]:
+    bounds = transform_bounds(
+        boundary.crs,
+        src_crs,
+        *boundary.total_bounds,
+        densify_pts=21,
+    )
+
+    window = from_bounds(*bounds, transform=dem_transform)
+    full_window = Window(col_off=0, row_off=0, width=dem_array.shape[1], height=dem_array.shape[0])
+    window = window.intersection(full_window).round_offsets().round_lengths()
+
+    row_off = int(window.row_off)
+    col_off = int(window.col_off)
+    height = int(window.height)
+    width = int(window.width)
+    if height <= 0 or width <= 0:
+        raise ValueError("Boundary does not overlap DEM extent.")
+
+    cropped = dem_array[row_off : row_off + height, col_off : col_off + width]
+    cropped_transform = rasterio.windows.transform(window, dem_transform)
+    return cropped, cropped_transform
+
+
 def _reproject_dem(
     dem_array: np.ndarray,
     src_transform: Affine,
@@ -126,9 +179,14 @@ def _reproject_dem(
     dst_crs: str,
     nodata: float,
     resampling: Resampling,
+    output_resolution: float | None,
 ) -> tuple[np.ndarray, Affine]:
     src_height, src_width = dem_array.shape
     left, bottom, right, top = rasterio.transform.array_bounds(src_height, src_width, src_transform)
+
+    transform_kwargs: dict[str, float] = {}
+    if output_resolution is not None:
+        transform_kwargs["resolution"] = output_resolution
 
     dst_transform, dst_width, dst_height = calculate_default_transform(
         src_crs,
@@ -139,6 +197,7 @@ def _reproject_dem(
         bottom,
         right,
         top,
+        **transform_kwargs,
     )
 
     dst_array = np.full((dst_height, dst_width), nodata, dtype="float32")
@@ -161,16 +220,10 @@ def _clip_to_boundary(
     dem_transform: Affine,
     dem_crs: str,
     nodata: float,
-    boundary_path: Path,
+    boundary: gpd.GeoDataFrame,
 ) -> tuple[np.ndarray, Affine]:
-    va_boundary = gpd.read_file(boundary_path)
-    if va_boundary.empty:
-        raise ValueError(f"Boundary file is empty: {boundary_path}")
-    if va_boundary.crs is None:
-        raise ValueError(f"Boundary file has no CRS: {boundary_path}")
-
-    va_boundary = va_boundary.to_crs(dem_crs)
-    geometry = [va_boundary.geometry.union_all().__geo_interface__]
+    boundary_projected = boundary.to_crs(dem_crs)
+    geometry = [boundary_projected.geometry.union_all().__geo_interface__]
 
     profile = {
         "driver": "GTiff",
