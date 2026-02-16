@@ -13,7 +13,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Renders a 16:9 map + right-side panel layout in dark theme.
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + 2023 facility icons (`layout_points_top20_icons.png`)
+  - **points**: boundary + 2023 facilities where top-20 emitters use icons and all other facilities are labeled by primary subpart code (`layout_points_top20_icons.png`)
 
 ---
 
@@ -54,6 +54,14 @@ conda activate va-ghg
 ```
 
 ### 2) Run the renderer
+
+### 2b) (Optional but recommended) Generate smaller icon assets
+
+To avoid oversized map symbols, create small icon variants once and keep rendering pointed at `icons/small`:
+
+```bash
+python -m scripts.resize_icons --input-dir icons --output-dir icons/small --max-size-px 28
+```
 
 Render both targets:
 
