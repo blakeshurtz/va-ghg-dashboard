@@ -22,6 +22,8 @@ paths:
   emissions_lon_col: longitude
   top20_csv: data/top_20.csv
   icons_dir: icons/small
+  pipelines: layers/natural_gas_pipelines/pipelines_us.gpkg
+  pipelines_layer: pipelines_us
 
 style:
   background: "#0b0f14"
@@ -34,6 +36,10 @@ style:
   points_alpha: 0.8
   top20_icon_zoom: 0.08
   padding_pct: 0.02
+  pipelines_color: "#2b8cbe"
+  pipelines_linewidth: 0.4
+  pipelines_alpha: 0.5
+  pipelines_zorder: 2
 
 sector_classification:
 

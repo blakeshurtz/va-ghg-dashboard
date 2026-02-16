@@ -78,6 +78,13 @@ def validate_config(cfg: dict[str, Any]) -> None:
     if not va_boundary_path.exists():
         raise FileNotFoundError(f"Boundary file not found: {va_boundary_path}")
 
+
+    pipelines = paths.get("pipelines")
+    if pipelines is not None and str(pipelines).strip():
+        pipelines_path = Path(str(pipelines))
+        if not pipelines_path.exists():
+            raise FileNotFoundError(f"Configured pipelines file not found: {pipelines_path}")
+
     emissions_csv = paths.get("emissions_csv")
     if emissions_csv is not None and str(emissions_csv).strip():
         emissions_path = Path(str(emissions_csv))
