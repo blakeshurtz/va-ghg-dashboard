@@ -21,7 +21,13 @@ def load_va_boundary(path: str) -> gpd.GeoDataFrame:
 
 def load_emissions_csv(path: str) -> pd.DataFrame:
     """Load emissions CSV data into a DataFrame."""
-    return pd.read_csv(path)
+    try:
+        return pd.read_csv(path)
+    except pd.errors.ParserError as exc:
+        raise ValueError(
+            f"Failed to parse CSV '{path}': inconsistent commas/quoting are likely; "
+            "check quoted fields in rows that contain commas."
+        ) from exc
 
 
 def validate_required_columns(df: pd.DataFrame, required: Iterable[str]) -> None:
