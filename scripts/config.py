@@ -101,6 +101,22 @@ def validate_config(cfg: dict[str, Any]) -> None:
         if not top20_path.exists():
             raise FileNotFoundError(f"Configured top-20 CSV not found: {top20_path}")
 
+    va_boundary_path = paths.get("va_boundary_path")
+    if va_boundary_path is not None and str(va_boundary_path).strip():
+        boundary_override_path = Path(str(va_boundary_path))
+        if not boundary_override_path.exists():
+            raise FileNotFoundError(
+                f"Configured terrain boundary file not found: {boundary_override_path}"
+            )
+
+    crs = cfg.get("crs")
+    if crs is not None:
+        if not isinstance(crs, dict):
+            raise ValueError("Config section 'crs' must be a mapping/object when provided.")
+        map_crs = crs.get("map_crs")
+        if map_crs is not None and not str(map_crs).strip():
+            raise ValueError("Config key 'crs.map_crs' cannot be empty when provided.")
+
     missing_style = REQUIRED_STYLE_KEYS - set(style)
     if missing_style:
         raise ValueError(f"Missing style keys: {sorted(missing_style)}")

@@ -14,6 +14,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
   - **points**: boundary + 2023 facilities where top-20 emitters use icons and all other facilities are labeled by primary subpart code (`layout_points_top20_icons.png`)
+- Generates terrain preprocessing artifacts when DEM tiles are available (clipped DEM, hillshade, and terrain tint overlay).
 
 ---
 
@@ -24,9 +25,10 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 ├── config.yml
 ├── environment.yml
 ├── scripts/
-│   ├── build.py          # CLI entrypoint (`--target base|points|all`)
+│   ├── build.py          # CLI entrypoint (`--target base|points|terrain|all`)
 │   ├── config.py         # YAML load + schema/path validation
 │   ├── io.py             # Boundary/CSV loading + GeoDataFrame utilities
+│   ├── terrain.py        # DEM mosaic + clip + hillshade + tint pipeline
 │   ├── layout.py         # Figure, axes, and theme setup
 │   ├── map_base.py       # Boundary draw + extent helpers
 │   ├── points.py         # Point plotting helpers
@@ -82,6 +84,33 @@ Expected outputs (default config):
 - `output/layout_points_top20_icons.png`
 
 ---
+
+### 3) Terrain preprocessing (optional, partial tile coverage is supported)
+
+Put any downloaded USGS 3DEP DEM `.tif` tiles in:
+
+- `data/terrain/raw/`
+
+You do **not** need full Virginia coverage. The terrain step will process whatever extent is available and clip to the Virginia boundary where DEM data exists.
+
+Run:
+
+```bash
+python -m scripts.build --config config.yml --target terrain
+# or include terrain with everything
+python -m scripts.build --config config.yml --target all
+```
+
+Terrain outputs are written to `data/terrain/processed/`:
+
+- `dem_va_clipped.tif`
+- `hillshade_va.tif`
+- `terrain_tint_va.png`
+
+If no tiles are found in `data/terrain/raw/`, the build prints a warning and continues without crashing.
+
+---
+
 
 ## Configuration reference (`config.yml`)
 
