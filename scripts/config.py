@@ -109,6 +109,22 @@ def validate_config(cfg: dict[str, Any]) -> None:
                 f"Configured terrain boundary file not found: {boundary_override_path}"
             )
 
+
+    terrain = cfg.get("terrain")
+    if terrain is not None:
+        if not isinstance(terrain, dict):
+            raise ValueError("Config section 'terrain' must be a mapping/object when provided.")
+        output_resolution = terrain.get("output_resolution")
+        if output_resolution is not None:
+            try:
+                output_resolution_value = float(output_resolution)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Config key 'terrain.output_resolution' must be numeric when provided."
+                ) from exc
+            if output_resolution_value <= 0:
+                raise ValueError("Config key 'terrain.output_resolution' must be > 0 when provided.")
+
     crs = cfg.get("crs")
     if crs is not None:
         if not isinstance(crs, dict):

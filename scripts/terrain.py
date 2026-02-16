@@ -43,6 +43,11 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
     vertical_exaggeration = float(terrain_cfg.get("vertical_exaggeration", 1.0))
     tint_strength = float(terrain_cfg.get("tint_strength", 0.25))
     dem_resample = _parse_resampling(str(terrain_cfg.get("dem_resample", "bilinear")))
+    output_resolution = terrain_cfg.get("output_resolution")
+    if output_resolution is not None:
+        output_resolution = float(output_resolution)
+        if output_resolution <= 0:
+            raise ValueError("Config key 'terrain.output_resolution' must be > 0 when provided.")
 
     raw_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +67,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
         dst_crs=map_crs,
         nodata=nodata,
         resampling=dem_resample,
+        output_resolution=output_resolution,
     )
 
     clipped_array, clipped_transform = _clip_to_boundary(
@@ -126,9 +132,14 @@ def _reproject_dem(
     dst_crs: str,
     nodata: float,
     resampling: Resampling,
+    output_resolution: float | None,
 ) -> tuple[np.ndarray, Affine]:
     src_height, src_width = dem_array.shape
     left, bottom, right, top = rasterio.transform.array_bounds(src_height, src_width, src_transform)
+
+    transform_kwargs: dict[str, float] = {}
+    if output_resolution is not None:
+        transform_kwargs["resolution"] = output_resolution
 
     dst_transform, dst_width, dst_height = calculate_default_transform(
         src_crs,
@@ -139,6 +150,7 @@ def _reproject_dem(
         bottom,
         right,
         top,
+        **transform_kwargs,
     )
 
     dst_array = np.full((dst_height, dst_width), nodata, dtype="float32")
