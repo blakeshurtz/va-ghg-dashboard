@@ -2,7 +2,7 @@
 
 A geospatial rendering pipeline for producing dark-theme dashboard layout artifacts of Virginia industrial greenhouse gas (GHG) facilities.
 
-The project currently generates PNG layout outputs (base map + points overlay) using configurable data paths and style settings.
+The project currently generates PNG layout outputs (base map + points overlay) using configurable data paths and style settings, including icon overlays for top-20 facilities.
 
 ---
 
@@ -13,7 +13,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Renders a 16:9 map + right-side panel layout in dark theme.
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + facility points (`layout_points.png`)
+  - **points**: boundary + facility points plus top-20 icons (`layout_points_top20_icons.png`)
 
 ---
 
@@ -71,7 +71,7 @@ python -m scripts.build --config config.yml --target points
 Expected outputs (default config):
 
 - `output/layout_base.png`
-- `output/layout_points.png`
+- `output/layout_points_top20_icons.png`
 
 ---
 
@@ -115,28 +115,28 @@ Rows with non-numeric or missing coordinates are dropped during point conversion
 
 ### GHGRP subpart reference (common codes in this dataset)
 
-| Code   | Official Subpart Name                                    | Description (Plain English)                                                                          | EPA Reference                                                                                                                                                                                        |
-| ------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AA** | Pulp and Paper Manufacturing                             | Emissions from pulp & paper mills, including process emissions and combustion sources.               | [https://www.epa.gov/ghgreporting/subpart-aa-pulp-and-paper-manufacturing](https://www.epa.gov/ghgreporting/subpart-aa-pulp-and-paper-manufacturing)                                                 |
-| **C**  | General Stationary Fuel Combustion                       | Boilers, heaters, turbines, furnaces, and other stationary combustion units used for heat and power. | [https://www.epa.gov/ghgreporting/subpart-c-general-stationary-fuel-combustion-sources](https://www.epa.gov/ghgreporting/subpart-c-general-stationary-fuel-combustion-sources)                       |
-| **D**  | Electricity Generation                                   | Fossil-fuel power plants generating electricity for grid supply.                                     | [https://www.epa.gov/ghgreporting/subpart-d-electricity-generation](https://www.epa.gov/ghgreporting/subpart-d-electricity-generation)                                                               |
-| **DD** | Electrical Transmission & Distribution Equipment         | SF₆ and other fluorinated gases from electrical switchgear and transmission equipment.               | [https://www.epa.gov/ghgreporting/subpart-dd-use-electric-transmission-and-distribution-equipment](https://www.epa.gov/ghgreporting/subpart-dd-use-electric-transmission-and-distribution-equipment) |
-| **FF** | Underground Coal Mines                                   | Methane emissions released from underground coal mining operations.                                  | [https://www.epa.gov/ghgreporting/subpart-ff-underground-coal-mines](https://www.epa.gov/ghgreporting/subpart-ff-underground-coal-mines)                                                             |
-| **G**  | Ammonia Manufacturing                                    | Hydrogen reforming and chemical processes used to manufacture ammonia (fertilizer production).       | [https://www.epa.gov/ghgreporting/subpart-g-ammonia-manufacturing](https://www.epa.gov/ghgreporting/subpart-g-ammonia-manufacturing)                                                                 |
-| **H**  | Cement Production                                        | CO₂ released during clinker production and kiln operations in cement manufacturing.                  | [https://www.epa.gov/ghgreporting/subpart-h-cement-production](https://www.epa.gov/ghgreporting/subpart-h-cement-production)                                                                         |
-| **HH** | Municipal Solid Waste Landfills                          | Methane emissions generated from decomposition of waste in municipal landfills.                      | [https://www.epa.gov/ghgreporting/subpart-hh-municipal-solid-waste-landfills](https://www.epa.gov/ghgreporting/subpart-hh-municipal-solid-waste-landfills)                                           |
-| **I**  | Electronics Manufacturing                                | Semiconductor and electronics manufacturing emissions, including fluorinated gases.                  | [https://www.epa.gov/ghgreporting/subpart-i-electronics-manufacturing](https://www.epa.gov/ghgreporting/subpart-i-electronics-manufacturing)                                                         |
-| **II** | Industrial Wastewater Treatment                          | Methane and nitrous oxide emissions from treatment of industrial wastewater streams.                 | [https://www.epa.gov/ghgreporting/subpart-ii-industrial-wastewater-treatment](https://www.epa.gov/ghgreporting/subpart-ii-industrial-wastewater-treatment)                                           |
-| **N**  | Glass Production                                         | Process and combustion emissions from glass and fiberglass manufacturing furnaces.                   | [https://www.epa.gov/ghgreporting/subpart-n-glass-production](https://www.epa.gov/ghgreporting/subpart-n-glass-production)                                                                           |
-| **NN** | Suppliers of Natural Gas & Natural Gas Liquefied Liquids | Distribution and supply of natural gas and NGLs, including fugitive emissions accounting.            | [https://www.epa.gov/ghgreporting/subpart-nn-suppliers-natural-gas-and-natural-gas-liquids](https://www.epa.gov/ghgreporting/subpart-nn-suppliers-natural-gas-and-natural-gas-liquids)               |
-| **P**  | Hydrogen Production                                      | Industrial hydrogen production via reforming or gasification processes.                              | [https://www.epa.gov/ghgreporting/subpart-p-hydrogen-production](https://www.epa.gov/ghgreporting/subpart-p-hydrogen-production)                                                                     |
-| **PP** | Suppliers of Carbon Dioxide                              | Facilities that capture, produce, or supply CO₂ for industrial or commercial use.                    | [https://www.epa.gov/ghgreporting/subpart-pp-suppliers-carbon-dioxide](https://www.epa.gov/ghgreporting/subpart-pp-suppliers-carbon-dioxide)                                                         |
-| **Q**  | Iron and Steel Production                                | Blast furnaces, coke production, and steelmaking operations emitting CO₂.                            | [https://www.epa.gov/ghgreporting/subpart-q-iron-and-steel-production](https://www.epa.gov/ghgreporting/subpart-q-iron-and-steel-production)                                                         |
-| **S**  | Lime Manufacturing                                       | Calcination of limestone/dolomite to produce lime, releasing CO₂.                                    | [https://www.epa.gov/ghgreporting/subpart-s-lime-manufacturing](https://www.epa.gov/ghgreporting/subpart-s-lime-manufacturing)                                                                       |
-| **TT** | Industrial Waste Landfills                               | Methane emissions from disposal of industrial waste materials.                                       | [https://www.epa.gov/ghgreporting/subpart-tt-industrial-waste-landfills](https://www.epa.gov/ghgreporting/subpart-tt-industrial-waste-landfills)                                                     |
-| **V**  | Nitric Acid Production                                   | Nitrous oxide emissions from nitric acid production processes.                                       | [https://www.epa.gov/ghgreporting/subpart-v-nitric-acid-production](https://www.epa.gov/ghgreporting/subpart-v-nitric-acid-production)                                                               |
-| **W**  | Petroleum & Natural Gas Systems                          | Oil & gas production, processing, transmission, storage, and distribution systems.                   | [https://www.epa.gov/ghgreporting/subpart-w-petroleum-and-natural-gas-systems](https://www.epa.gov/ghgreporting/subpart-w-petroleum-and-natural-gas-systems)                                         |
-| **Y**  | Petroleum Refineries                                     | Refining of crude oil into fuels and petrochemical feedstocks.                                       | [https://www.epa.gov/ghgreporting/subpart-y-petroleum-refineries](https://www.epa.gov/ghgreporting/subpart-y-petroleum-refineries)                                                                   |
+| Code   | Official Subpart Name                                    | Description + EPA Link                                                                                                                |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **AA** | Pulp and Paper Manufacturing | Emissions from pulp & paper mills, including process emissions and combustion sources. ([click me](https://www.epa.gov/ghgreporting/subpart-aa-pulp-and-paper-manufacturing)) |
+| **C** | General Stationary Fuel Combustion | Boilers, heaters, turbines, furnaces, and other stationary combustion units used for heat and power. ([click me](https://www.epa.gov/ghgreporting/subpart-c-general-stationary-fuel-combustion-sources)) |
+| **D** | Electricity Generation | Fossil-fuel power plants generating electricity for grid supply. ([click me](https://www.epa.gov/ghgreporting/subpart-d-electricity-generation)) |
+| **DD** | Electrical Transmission & Distribution Equipment | SF₆ and other fluorinated gases from electrical switchgear and transmission equipment. ([click me](https://www.epa.gov/ghgreporting/subpart-dd-use-electric-transmission-and-distribution-equipment)) |
+| **FF** | Underground Coal Mines | Methane emissions released from underground coal mining operations. ([click me](https://www.epa.gov/ghgreporting/subpart-ff-underground-coal-mines)) |
+| **G** | Ammonia Manufacturing | Hydrogen reforming and chemical processes used to manufacture ammonia (fertilizer production). ([click me](https://www.epa.gov/ghgreporting/subpart-g-ammonia-manufacturing)) |
+| **H** | Cement Production | CO₂ released during clinker production and kiln operations in cement manufacturing. ([click me](https://www.epa.gov/ghgreporting/subpart-h-cement-production)) |
+| **HH** | Municipal Solid Waste Landfills | Methane emissions generated from decomposition of waste in municipal landfills. ([click me](https://www.epa.gov/ghgreporting/subpart-hh-municipal-solid-waste-landfills)) |
+| **I** | Electronics Manufacturing | Semiconductor and electronics manufacturing emissions, including fluorinated gases. ([click me](https://www.epa.gov/ghgreporting/subpart-i-electronics-manufacturing)) |
+| **II** | Industrial Wastewater Treatment | Methane and nitrous oxide emissions from treatment of industrial wastewater streams. ([click me](https://www.epa.gov/ghgreporting/subpart-ii-industrial-wastewater-treatment)) |
+| **N** | Glass Production | Process and combustion emissions from glass and fiberglass manufacturing furnaces. ([click me](https://www.epa.gov/ghgreporting/subpart-n-glass-production)) |
+| **NN** | Suppliers of Natural Gas & Natural Gas Liquefied Liquids | Distribution and supply of natural gas and NGLs, including fugitive emissions accounting. ([click me](https://www.epa.gov/ghgreporting/subpart-nn-suppliers-natural-gas-and-natural-gas-liquids)) |
+| **P** | Hydrogen Production | Industrial hydrogen production via reforming or gasification processes. ([click me](https://www.epa.gov/ghgreporting/subpart-p-hydrogen-production)) |
+| **PP** | Suppliers of Carbon Dioxide | Facilities that capture, produce, or supply CO₂ for industrial or commercial use. ([click me](https://www.epa.gov/ghgreporting/subpart-pp-suppliers-carbon-dioxide)) |
+| **Q** | Iron and Steel Production | Blast furnaces, coke production, and steelmaking operations emitting CO₂. ([click me](https://www.epa.gov/ghgreporting/subpart-q-iron-and-steel-production)) |
+| **S** | Lime Manufacturing | Calcination of limestone/dolomite to produce lime, releasing CO₂. ([click me](https://www.epa.gov/ghgreporting/subpart-s-lime-manufacturing)) |
+| **TT** | Industrial Waste Landfills | Methane emissions from disposal of industrial waste materials. ([click me](https://www.epa.gov/ghgreporting/subpart-tt-industrial-waste-landfills)) |
+| **V** | Nitric Acid Production | Nitrous oxide emissions from nitric acid production processes. ([click me](https://www.epa.gov/ghgreporting/subpart-v-nitric-acid-production)) |
+| **W** | Petroleum & Natural Gas Systems | Oil & gas production, processing, transmission, storage, and distribution systems. ([click me](https://www.epa.gov/ghgreporting/subpart-w-petroleum-and-natural-gas-systems)) |
+| **Y** | Petroleum Refineries | Refining of crude oil into fuels and petrochemical feedstocks. ([click me](https://www.epa.gov/ghgreporting/subpart-y-petroleum-refineries)) |
 
 ### Data dictionary (EPA FLIGHT cleaned output)
 

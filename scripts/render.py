@@ -15,7 +15,7 @@ from scripts.io import (
 )
 from scripts.layout import apply_dark_theme, create_canvas
 from scripts.map_base import draw_boundary, set_extent_to_boundary
-from scripts.points import draw_points
+from scripts.points import draw_points_with_top20_icons
 
 TARGET_CRS = "EPSG:3857"
 
@@ -75,7 +75,9 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
     draw_boundary(map_ax, boundary, cfg)
-    draw_points(map_ax, points, cfg)
+    top20_csv = cfg["paths"].get("top20_csv", "data/top_20.csv")
+    top20_df = load_emissions_csv(top20_csv)
+    draw_points_with_top20_icons(map_ax, points, top20_df, cfg)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 
     _save_figure(fig, paths["points_png"], int(cfg["render"]["dpi"]))

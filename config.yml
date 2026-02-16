@@ -8,7 +8,7 @@ render:
   output_dir: output
   outputs:
     base_png: layout_base.png
-    points_png: layout_points.png
+    points_png: layout_points_top20_icons.png
   output_pdf: output/va_ghg_dashboard.pdf
 
 layout:
@@ -20,6 +20,8 @@ paths:
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
+  top20_csv: data/top_20.csv
+  icons_dir: icons
 
 style:
   background: "#0b0f14"
@@ -30,6 +32,7 @@ style:
   points_color: "#ff8c42"
   points_size: 8
   points_alpha: 0.8
+  top20_icon_zoom: 0.2
   padding_pct: 0.02
 
 sector_classification:
