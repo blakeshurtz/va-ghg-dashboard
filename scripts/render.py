@@ -14,10 +14,10 @@ from scripts.io import (
     ensure_crs,
     load_emissions_csv,
     load_va_boundary,
-    load_vector_layer,
+    load_vector_collection,
 )
 from scripts.layout import apply_dark_theme, create_canvas
-from scripts.map_base import draw_boundary, draw_pipelines, set_extent_to_boundary
+from scripts.map_base import draw_boundary, draw_pipelines, draw_reference_layer, set_extent_to_boundary
 from scripts.points import draw_points_with_facility_icons
 
 TARGET_CRS = "EPSG:3857"
@@ -47,8 +47,42 @@ def _load_pipelines_3857(cfg: dict[str, Any]):
         return None
 
     layer = cfg["paths"].get("pipelines_layer")
-    pipelines = load_vector_layer(pipelines_path, layer=layer)
+    pipelines = load_vector_collection(pipelines_path, layer=layer)
     return ensure_crs(pipelines, TARGET_CRS)
+
+
+def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
+    path_keys = {
+        "railroads": "railroads",
+        "primary_roads": "primary_roads",
+        "incorporated_places": "incorporated_places",
+        "principal_ports": "principal_ports",
+    }
+
+    layers: dict[str, Any] = {}
+    for layer_name, path_key in path_keys.items():
+        source_path = cfg["paths"].get(path_key)
+        if not source_path:
+            continue
+        layer = load_vector_collection(source_path)
+        layers[layer_name] = ensure_crs(layer, TARGET_CRS)
+
+    return layers
+
+
+def _draw_reference_layers(map_ax, boundary, cfg: dict[str, Any], layers: dict[str, Any]) -> None:
+    style = cfg.get("style", {})
+    for layer_name, layer_gdf in layers.items():
+        draw_reference_layer(
+            map_ax,
+            layer_gdf,
+            boundary,
+            color=style.get(f"{layer_name}_color", "#546e7a"),
+            linewidth=float(style.get(f"{layer_name}_linewidth", 0.35)),
+            alpha=float(style.get(f"{layer_name}_alpha", 0.35)),
+            zorder=float(style.get(f"{layer_name}_zorder", 1.5)),
+            marker_size=float(style.get(f"{layer_name}_marker_size", 6.0)),
+        )
 
 
 def _save_figure(fig, path: Path, dpi: int) -> None:
@@ -88,6 +122,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
     pipelines = _load_pipelines_3857(cfg)
+    reference_layers = _load_reference_layers_3857(cfg)
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
@@ -95,6 +130,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
+    _draw_reference_layers(map_ax, boundary, cfg, reference_layers)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 
     _save_figure(fig, paths["base_png"], int(cfg["render"]["dpi"]))
@@ -110,6 +146,7 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
     pipelines = _load_pipelines_3857(cfg)
+    reference_layers = _load_reference_layers_3857(cfg)
 
     points_df = load_emissions_csv(emissions_csv)
     if "reporting_year" in points_df.columns:
@@ -143,6 +180,7 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
+    _draw_reference_layers(map_ax, boundary, cfg, reference_layers)
     draw_points_with_facility_icons(map_ax, points, cfg)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 

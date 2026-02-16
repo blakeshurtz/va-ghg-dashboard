@@ -42,6 +42,42 @@ def draw_pipelines(
     )
 
 
+def draw_reference_layer(
+    map_ax,
+    layer_gdf: gpd.GeoDataFrame,
+    boundary_gdf: gpd.GeoDataFrame,
+    *,
+    color: str,
+    linewidth: float,
+    alpha: float,
+    zorder: float,
+    marker_size: float = 6.0,
+) -> None:
+    """Draw a reference vector layer clipped to the boundary extent."""
+    clipped = gpd.clip(layer_gdf, boundary_gdf)
+    if clipped.empty:
+        return
+
+    geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
+    if geom_types <= {"Point", "MultiPoint"}:
+        clipped.plot(
+            ax=map_ax,
+            color=color,
+            alpha=alpha,
+            zorder=zorder,
+            markersize=marker_size,
+        )
+        return
+
+    clipped.plot(
+        ax=map_ax,
+        color=color,
+        linewidth=linewidth,
+        alpha=alpha,
+        zorder=zorder,
+    )
+
+
 def set_extent_to_boundary(
     map_ax,
     boundary_gdf: gpd.GeoDataFrame,

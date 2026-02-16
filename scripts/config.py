@@ -85,6 +85,16 @@ def validate_config(cfg: dict[str, Any]) -> None:
         if not pipelines_path.exists():
             raise FileNotFoundError(f"Configured pipelines file not found: {pipelines_path}")
 
+    for optional_vector_key in ("railroads", "primary_roads", "principal_ports", "incorporated_places"):
+        vector_path = paths.get(optional_vector_key)
+        if vector_path is None or not str(vector_path).strip():
+            continue
+        vector_path_obj = Path(str(vector_path))
+        if not vector_path_obj.exists():
+            raise FileNotFoundError(
+                f"Configured {optional_vector_key} path not found: {vector_path_obj}"
+            )
+
     emissions_csv = paths.get("emissions_csv")
     if emissions_csv is not None and str(emissions_csv).strip():
         emissions_path = Path(str(emissions_csv))
