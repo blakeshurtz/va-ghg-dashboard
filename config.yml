@@ -18,8 +18,8 @@ layout:
 paths:
   va_boundary: data/boundaries/va_boundary_20m.geojson
   va_boundary_path: data/boundaries/va_boundary_20m.geojson
-  terrain_raw_dir: data/terrain/raw
-  terrain_processed_dir: data/terrain/processed
+  terrain_raw_dir: layers/terrain/raw
+  terrain_processed_dir: layers/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
