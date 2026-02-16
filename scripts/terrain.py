@@ -73,7 +73,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
 
     va_boundary = _load_boundary(boundary_path)
     mosaic_path = processed_dir / "dem_va_mosaic.tif"
-    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata)
+    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata, boundary=va_boundary)
 
     cropped_path = processed_dir / "dem_va_mosaic_cropped.tif"
     _crop_dem_to_boundary_bounds(
@@ -144,14 +144,25 @@ def _load_boundary(boundary_path: Path) -> gpd.GeoDataFrame:
     return boundary
 
 
-def _mosaic_tiles_to_tif(tif_paths: list[Path], out_path: Path, nodata: float) -> None:
+def _mosaic_tiles_to_tif(
+    tif_paths: list[Path],
+    out_path: Path,
+    nodata: float,
+    boundary: gpd.GeoDataFrame,
+) -> None:
     with ExitStack() as stack:
         datasets = [stack.enter_context(rasterio.open(path)) for path in tif_paths]
-        mosaic, transform = merge(datasets, nodata=nodata)
+        bounds = transform_bounds(
+            boundary.crs,
+            datasets[0].crs,
+            *boundary.total_bounds,
+            densify_pts=21,
+        )
+        mosaic, transform = merge(datasets, nodata=nodata, bounds=bounds)
         crs = datasets[0].crs
 
     dem = mosaic[0].astype("float32", copy=False)
-    dem[~np.isfinite(dem)] = nodata
+    np.nan_to_num(dem, copy=False, nan=nodata, posinf=nodata, neginf=nodata)
 
     with rasterio.open(
         out_path,
