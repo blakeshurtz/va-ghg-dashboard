@@ -31,3 +31,54 @@ style:
   points_size: 8
   points_alpha: 0.8
   padding_pct: 0.02
+
+sector_classification:
+
+  power_plant:
+    subparts: ["C,D"]
+    name: "Power Plant"
+    icon: "power.svg"
+    color: "#D73027"
+    priority: 1
+
+  generation_unit:
+    subparts: ["D"]
+    name: "Generation Unit"
+    icon: "turbine.svg"
+    color: "#FC8D59"
+    priority: 2
+
+  chemical_manufacturing:
+    subparts: ["C,G,PP"]
+    name: "Chemical Manufacturing"
+    icon: "chemical.svg"
+    color: "#7B3294"
+    priority: 3
+
+  pulp_paper:
+    subparts: ["AA,C,TT"]
+    name: "Pulp & Paper"
+    icon: "paper.svg"
+    color: "#1A9850"
+    priority: 4
+
+  coal_mining:
+    subparts: ["FF"]
+    name: "Coal Mining"
+    icon: "mine.svg"
+    color: "#333333"
+    priority: 5
+
+  cement:
+    subparts: ["C,H"]
+    name: "Cement Production"
+    icon: "cement.svg"
+    color: "#8C510A"
+    priority: 6
+
+  industrial:
+    subparts: ["C,TT"]
+    name: "Industrial Manufacturing"
+    icon: "industrial.svg"
+    color: "#4575B4"
+    priority: 7
