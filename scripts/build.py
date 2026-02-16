@@ -1,29 +1,46 @@
+"""CLI entrypoint for layout-aware dashboard renders."""
+
+from __future__ import annotations
+
 import argparse
-from pathlib import Path
-import yaml
 
-def load_config(path: str) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+from scripts.config import load_yaml_config, validate_config
+from scripts.render import render_layout_base, render_layout_points
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="config.yml")
-    args = ap.parse_args()
 
-    cfg = load_config(args.config)
+TARGET_CHOICES = ("base", "points", "all")
 
-    out_pdf = Path(cfg.get("render", {}).get("output_pdf", "output/va_ghg_dashboard.pdf"))
-    out_pdf.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"[OK] Loaded config: {args.config}")
-    print(f"[OK] Output target: {out_pdf}")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build VA GHG render artifacts")
+    parser.add_argument("--config", default="config.yml", help="Path to YAML config")
+    parser.add_argument(
+        "--target",
+        default="all",
+        choices=TARGET_CHOICES,
+        help="Render target: base, points, or all",
+    )
+    args = parser.parse_args()
 
-    # Next modules we’ll implement:
-    print("[NEXT] terrain tint generation")
-    print("[NEXT] load + clip VA layers")
-    print("[NEXT] render map layout + 2x10 facets")
-    print("[NEXT] export 1920x1080 PDF")
+    try:
+        cfg = load_yaml_config(args.config)
+        validate_config(cfg)
+        print(f"[OK] Loaded and validated config: {args.config}")
+
+        if args.target in ("base", "all"):
+            base_path = render_layout_base(cfg)
+            print(f"[OK] Rendered base layout PNG: {base_path}")
+
+        if args.target in ("points", "all"):
+            points_path = render_layout_points(cfg)
+            print(f"[OK] Rendered points layout PNG: {points_path}")
+
+        print("[OK] Build finished.")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERR] Build failed: {exc}")
+        return 1
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
