@@ -37,3 +37,4 @@ layers/cache/
 # If you use contextily caching
 .cache/
 data/flight.xls
+*.zip

@@ -6,6 +6,8 @@ Reproducible, open-source pipeline to generate a **1920×1080 PDF** dashboard sh
 
 https://ghgdata.epa.gov/flight/?viewType=line
 
+https://www2.census.gov/geo/tiger/GENZ2023/shp/
+
 ## Output
 - `output/va_ghg_dashboard.pdf` (generated)
 
@@ -55,3 +57,78 @@ Each Excel worksheet corresponds to a reporting year. The pipeline stacks all ye
 - Column names are normalized to snake_case.
 - Numeric columns (`reporting_year`, `ghgrp_id`, `latitude`, `longitude`, `ghg_quantity_metric_tons_co2e`) are coerced with invalid values set to null.
 - Negative `ghg_quantity_metric_tons_co2e` values are set to null and flagged in `ghg_is_negative`.
+
+# va-ghg-dashboard
+## Virginia Industrial Emissions Systems Map
+
+A reproducible, open-source pipeline that generates a publication-quality systems visualization of Virginia industrial greenhouse gas emitters.
+
+The map situates emissions within terrain and infrastructure context to support:
+
+- policy insight
+- infrastructure understanding
+- emissions transparency
+- open scientific communication
+
+---
+
+## Data Sources
+
+EPA GHGRP FLIGHT Tool  
+https://ghgdata.epa.gov/flight/?viewType=line
+
+US Census TIGER Boundaries  
+https://www2.census.gov/geo/tiger/GENZ2023/shp/
+
+---
+
+## Output
+
+output/va_ghg_dashboard.pdf
+
+A publication-quality dashboard map.
+
+---
+
+## Repository Structure
+data/
+boundaries/ VA boundary geometry
+curated/ cleaned emissions datasets
+
+layers/ derived geospatial layers
+icons/ sector icon SVGs
+scripts/ build pipeline
+output/ rendered outputs (ignored by git)
+
+
+---
+
+## Environment Setup (Miniforge / Conda)
+
+Create the environment:
+
+```bash
+conda env create -f environment.yml
+conda activate va-ghg
+Activate it:
+
+conda activate va-ghg
+
+
+Run the pipeline:
+
+python -m scripts.build --config config.yml
+
+Data Pipeline Overview
+
+Import EPA GHGRP facility emissions (FLIGHT export)
+
+Clean & normalize multi-year data
+
+Filter Virginia facilities
+
+Generate terrain base & spatial context
+
+Render systems map and emissions visualization
+
+data/curated/flight_cleaned_all_years.csv
