@@ -12,10 +12,9 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
-from rasterio.merge import merge
 from rasterio.transform import Affine
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
-from rasterio.windows import Window, from_bounds, transform as window_transform
+from rasterio.windows import Window, bounds as window_bounds, from_bounds, transform as window_transform
 
 
 @dataclass(frozen=True)
@@ -73,7 +72,7 @@ def run_terrain_pipeline(cfg: dict[str, Any]) -> TerrainOutputs | None:
 
     va_boundary = _load_boundary(boundary_path)
     mosaic_path = processed_dir / "dem_va_mosaic.tif"
-    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata, boundary=va_boundary)
+    _mosaic_tiles_to_tif(tif_paths, mosaic_path, nodata, boundary=va_boundary, window_size=window_size)
 
     cropped_path = processed_dir / "dem_va_mosaic_cropped.tif"
     _crop_dem_to_boundary_bounds(
@@ -149,38 +148,102 @@ def _mosaic_tiles_to_tif(
     out_path: Path,
     nodata: float,
     boundary: gpd.GeoDataFrame,
+    window_size: int,
 ) -> None:
     with ExitStack() as stack:
         datasets = [stack.enter_context(rasterio.open(path)) for path in tif_paths]
+        first = datasets[0]
+
+        if any(ds.crs != first.crs for ds in datasets):
+            raise ValueError("All DEM tiles must share the same CRS for mosaicking.")
+
+        x_res = abs(first.transform.a)
+        y_res = abs(first.transform.e)
+        if x_res <= 0 or y_res <= 0:
+            raise ValueError("DEM tile has invalid pixel resolution.")
+
         bounds = transform_bounds(
             boundary.crs,
-            datasets[0].crs,
+            first.crs,
             *boundary.total_bounds,
             densify_pts=21,
         )
-        mosaic, transform = merge(datasets, nodata=nodata, bounds=bounds)
-        crs = datasets[0].crs
 
-    dem = mosaic[0].astype("float32", copy=False)
-    np.nan_to_num(dem, copy=False, nan=nodata, posinf=nodata, neginf=nodata)
+        left, bottom, right, top = bounds
+        width = int(np.ceil((right - left) / x_res))
+        height = int(np.ceil((top - bottom) / y_res))
+        if width <= 0 or height <= 0:
+            raise ValueError("Boundary does not overlap DEM tile extents.")
 
-    with rasterio.open(
-        out_path,
-        "w",
-        driver="GTiff",
-        height=dem.shape[0],
-        width=dem.shape[1],
-        count=1,
-        dtype="float32",
-        crs=crs,
-        transform=transform,
-        nodata=nodata,
-        compress="lzw",
-        tiled=True,
-        blockxsize=512,
-        blockysize=512,
-    ) as dst:
-        dst.write(dem, 1)
+        transform = Affine(x_res, 0.0, left, 0.0, -y_res, top)
+
+        profile = first.profile.copy()
+        profile.update(
+            {
+                "driver": "GTiff",
+                "height": height,
+                "width": width,
+                "count": 1,
+                "dtype": "float32",
+                "crs": first.crs,
+                "transform": transform,
+                "nodata": nodata,
+                "compress": "lzw",
+                "tiled": True,
+                "blockxsize": 512,
+                "blockysize": 512,
+            }
+        )
+
+        with rasterio.open(out_path, "w", **profile) as dst:
+            for window in _iter_windows(width, height, window_size):
+                tile_bounds = window_bounds(window, transform)
+                dst_block = np.full((int(window.height), int(window.width)), nodata, dtype="float32")
+
+                for src in datasets:
+                    overlap_left = max(tile_bounds[0], src.bounds.left)
+                    overlap_bottom = max(tile_bounds[1], src.bounds.bottom)
+                    overlap_right = min(tile_bounds[2], src.bounds.right)
+                    overlap_top = min(tile_bounds[3], src.bounds.top)
+                    if overlap_right <= overlap_left or overlap_top <= overlap_bottom:
+                        continue
+
+                    src_window = from_bounds(overlap_left, overlap_bottom, overlap_right, overlap_top, src.transform)
+                    src_window = src_window.round_offsets().round_lengths()
+                    src_window = src_window.intersection(Window(0, 0, src.width, src.height))
+                    if src_window.width <= 0 or src_window.height <= 0:
+                        continue
+
+                    dst_overlap_window = from_bounds(
+                        overlap_left,
+                        overlap_bottom,
+                        overlap_right,
+                        overlap_top,
+                        transform,
+                    ).round_offsets().round_lengths()
+
+                    out_shape = (int(dst_overlap_window.height), int(dst_overlap_window.width))
+                    if out_shape[0] <= 0 or out_shape[1] <= 0:
+                        continue
+
+                    src_data = src.read(
+                        1,
+                        window=src_window,
+                        out_shape=out_shape,
+                        resampling=Resampling.nearest,
+                    ).astype("float32", copy=False)
+                    src_data[~np.isfinite(src_data)] = nodata
+
+                    row_off = int(dst_overlap_window.row_off - window.row_off)
+                    col_off = int(dst_overlap_window.col_off - window.col_off)
+                    row_end = row_off + out_shape[0]
+                    col_end = col_off + out_shape[1]
+
+                    chunk = dst_block[row_off:row_end, col_off:col_end]
+                    fill_mask = (chunk == nodata) & (src_data != nodata)
+                    chunk[fill_mask] = src_data[fill_mask]
+
+                dst.write(dst_block, 1, window=window)
 
     _log_raster("Mosaic", out_path)
 
