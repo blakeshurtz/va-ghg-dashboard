@@ -13,7 +13,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Renders a 16:9 map + right-side panel layout in dark theme.
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + 2023 facilities where top-20 emitters use icons and all other facilities are labeled by primary subpart code (`layout_points_top20_icons.png`)
+  - **points**: boundary + 2023 facilities where mapped subparts render as icons and unmapped facilities are labeled by primary subpart code (`layout_points_top20_icons.png`)
 - Generates terrain preprocessing artifacts when DEM tiles are available (clipped DEM, hillshade, and terrain tint overlay).
 
 ---
