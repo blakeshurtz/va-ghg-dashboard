@@ -1,32 +1,38 @@
-# Prerequisites
-*.d
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Environments
+.venv/
+.env
+.env.*
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+# Outputs / build artifacts
+output/
+*.pdf
+*.png
 
-# Fortran module files
-*.mod
-*.smod
+# Large geodata caches / downloads (customize as needed)
+data/raw/
+layers/raw/
+layers/cache/
+*.tif
+*.tiff
+*.vrt
+*.gpkg-journal
+*.aux.xml
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+# If you use contextily caching
+.cache/
