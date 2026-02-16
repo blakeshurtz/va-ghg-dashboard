@@ -1,31 +1,33 @@
 state: VA
 
 render:
-  width: 1920
-  height: 1080
+  width_px: 3600
+  height_px: 2025
   dpi: 150
   theme: dark
+  output_dir: output
+  outputs:
+    base_png: layout_base.png
+    points_png: layout_points.png
   output_pdf: output/va_ghg_dashboard.pdf
 
-emissions:
-  input_csv: data/emissions/ghgrp_va_last5y.csv
-  year_min: 2021
-  threshold_mtco2e: 100000
-  top_n: 20
+layout:
+  map_frac: 0.66
+  panel_frac: 0.34
 
-layers:
-  va_boundary: layers/admin/va_boundary.gpkg
-  dem: layers/terrain/dem_va.tif
+paths:
+  va_boundary: data/boundaries/va_boundary_20m.geojson
+  emissions_csv: data/flight_cleaned_va_all_years.csv
+  emissions_lat_col: latitude
+  emissions_lon_col: longitude
 
-  transmission_lines: layers/networks/transmission.gpkg
-  natgas_pipelines: layers/networks/natgas_pipelines.gpkg
-  refined_fuel_pipelines: layers/networks/refined_fuel_pipelines.gpkg
-
-  freight_rail: layers/networks/freight_rail.gpkg
-  interstates: layers/networks/interstates.gpkg
-
-  hydrology_major: layers/hydro/major_rivers.gpkg
-
-terrain:
-  tint_strength: 0.35
-  blur_sigma: 1.2
+style:
+  background: "#0b0f14"
+  boundary_edgecolor: "#9fb3c8"
+  boundary_fill: null
+  boundary_linewidth: 1.2
+  boundary_alpha: 0.9
+  points_color: "#ff8c42"
+  points_size: 8
+  points_alpha: 0.8
+  padding_pct: 0.02
