@@ -72,35 +72,72 @@ terrain:
 
 style:
   background: "#0b0f14"
-  boundary_edgecolor: "#9fb3c8"
+
+  # VA outline
+  boundary_edgecolor: "#8fa6bd"
   boundary_fill: null
-  boundary_linewidth: 1.2
-  boundary_alpha: 0.9
+  boundary_linewidth: 1.4
+  boundary_alpha: 0.85
+
+  # Facilities (keep your orange, it’s great on dark)
   points_color: "#ff8c42"
-  points_size: 8
-  points_alpha: 0.8
-  top20_icon_zoom: 0.08
+  points_size: 10
+  points_alpha: 0.9
+  top20_icon_zoom: 0.085
+
   padding_pct: 0.02
-  pipelines_color: "#2b8cbe"
-  pipelines_linewidth: 0.4
-  pipelines_alpha: 0.5
-  pipelines_zorder: 2
-  railroads_color: "#f5f5f5"
-  railroads_linewidth: 0.35
-  railroads_alpha: 0.3
-  railroads_zorder: 2.2
-  primary_roads_color: "#f6c85f"
-  primary_roads_linewidth: 0.35
-  primary_roads_alpha: 0.25
-  primary_roads_zorder: 2.1
+
+  # Water (rivers)
+  rivers_color: "#2f80ed"
+  rivers_linewidth: 0.7
+  rivers_alpha: 0.65
+  rivers_zorder: 2.05
+
+  # Pipelines (teal)
+  pipelines_color: "#23b5d3"
+  pipelines_linewidth: 0.55
+  pipelines_alpha: 0.45
+  pipelines_zorder: 2.0
+
+  # Power transmission (purple-magenta so it’s unmistakable)
+  powerlines_color: "#b26cff"
+  powerlines_linewidth: 0.45
+  powerlines_alpha: 0.35
+  powerlines_zorder: 1.95
+
+  # Railroads (cool light gray, subtle)
+  railroads_color: "#d7dde6"
+  railroads_linewidth: 0.45
+  railroads_alpha: 0.28
+  railroads_zorder: 2.1
+
+  # Roads — Google-ish hierarchy via thickness + opacity
+  highways_color: "#fff2b3"           # brightest roads
+  highways_linewidth: 1.25
+  highways_alpha: 0.42
+  highways_zorder: 2.4
+
+  primary_roads_color: "#ffd27a"
+  primary_roads_linewidth: 0.85
+  primary_roads_alpha: 0.34
+  primary_roads_zorder: 2.3
+
+  secondary_roads_color: "#f3e6c8"
+  secondary_roads_linewidth: 0.55
+  secondary_roads_alpha: 0.22
+  secondary_roads_zorder: 2.2
+
+  # Places (quiet)
+  incorporated_places_color: "#9aa7b4"
+  incorporated_places_linewidth: 0.35
+  incorporated_places_alpha: 0.18
+  incorporated_places_zorder: 1.7
+
+  # Ports (keep cyan but slightly softer so it doesn’t fight water)
   principal_ports_color: "#4dd0e1"
-  principal_ports_alpha: 0.8
-  principal_ports_marker_size: 8
+  principal_ports_alpha: 0.75
+  principal_ports_marker_size: 9
   principal_ports_zorder: 2.6
-  incorporated_places_color: "#90a4ae"
-  incorporated_places_linewidth: 0.25
-  incorporated_places_alpha: 0.2
-  incorporated_places_zorder: 1.8
 
 sector_classification:
 
