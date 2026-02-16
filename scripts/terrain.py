@@ -12,6 +12,7 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import geometry_mask
+from rasterio.shutil import copy as rio_copy
 from rasterio.transform import Affine
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 from rasterio.windows import Window, bounds as window_bounds, from_bounds, transform as window_transform
@@ -476,50 +477,54 @@ def _write_terrain_tint_png(
     tint_strength: float,
     window_size: int,
 ) -> None:
-    with rasterio.open(hillshade_path) as hs_src, rasterio.open(dem_path) as dem_src:
-        profile = hs_src.profile.copy()
-        profile.update(
-            {
-                "driver": "PNG",
-                "count": 4,
-                "dtype": "uint8",
-                "nodata": None,
-                "compress": "deflate",
-            }
-        )
-        profile.pop("tiled", None)
-        profile.pop("blockxsize", None)
-        profile.pop("blockysize", None)
+    temp_tint_tif = png_path.with_suffix(".tmp.tif")
+    try:
+        with rasterio.open(hillshade_path) as hs_src, rasterio.open(dem_path) as dem_src:
+            tif_profile = hs_src.profile.copy()
+            tif_profile.update(
+                {
+                    "driver": "GTiff",
+                    "count": 4,
+                    "dtype": "uint8",
+                    "nodata": None,
+                    "compress": "deflate",
+                }
+            )
+            tif_profile.pop("photometric", None)
 
-        with rasterio.open(png_path, "w", **profile) as dst:
-            for window in _iter_windows(hs_src.width, hs_src.height, window_size):
-                hillshade = hs_src.read(1, window=window).astype("float32", copy=False)
-                dem_block = dem_src.read(1, window=window)
-                nodata_mask = (dem_block == nodata) | ~np.isfinite(dem_block)
+            with rasterio.open(temp_tint_tif, "w", **tif_profile) as dst:
+                for window in _iter_windows(hs_src.width, hs_src.height, window_size):
+                    hillshade = hs_src.read(1, window=window).astype("float32", copy=False)
+                    dem_block = dem_src.read(1, window=window)
+                    nodata_mask = (dem_block == nodata) | ~np.isfinite(dem_block)
 
-                hs_norm = hillshade / 255.0
-                base_gray = np.clip(150 + hs_norm * 50, 0, 255).astype("uint8")
-                alpha = np.clip(
-                    hs_norm * float(np.clip(tint_strength, 0.0, 1.0)) * 255.0,
-                    0,
-                    255,
-                ).astype("uint8")
+                    hs_norm = hillshade / 255.0
+                    base_gray = np.clip(150 + hs_norm * 50, 0, 255).astype("uint8")
+                    alpha = np.clip(
+                        hs_norm * float(np.clip(tint_strength, 0.0, 1.0)) * 255.0,
+                        0,
+                        255,
+                    ).astype("uint8")
 
-                valid = ~nodata_mask
-                r = np.zeros_like(base_gray, dtype="uint8")
-                g = np.zeros_like(base_gray, dtype="uint8")
-                b = np.zeros_like(base_gray, dtype="uint8")
-                a = np.zeros_like(base_gray, dtype="uint8")
+                    valid = ~nodata_mask
+                    r = np.zeros_like(base_gray, dtype="uint8")
+                    g = np.zeros_like(base_gray, dtype="uint8")
+                    b = np.zeros_like(base_gray, dtype="uint8")
+                    a = np.zeros_like(base_gray, dtype="uint8")
 
-                r[valid] = base_gray[valid]
-                g[valid] = base_gray[valid]
-                b[valid] = base_gray[valid]
-                a[valid] = alpha[valid]
+                    r[valid] = base_gray[valid]
+                    g[valid] = base_gray[valid]
+                    b[valid] = base_gray[valid]
+                    a[valid] = alpha[valid]
 
-                dst.write(r, 1, window=window)
-                dst.write(g, 2, window=window)
-                dst.write(b, 3, window=window)
-                dst.write(a, 4, window=window)
+                    dst.write(r, 1, window=window)
+                    dst.write(g, 2, window=window)
+                    dst.write(b, 3, window=window)
+                    dst.write(a, 4, window=window)
+
+        rio_copy(temp_tint_tif, png_path, driver="PNG", strict=False)
+    finally:
+        temp_tint_tif.unlink(missing_ok=True)
 
     print(f"[INFO] Terrain tint PNG written: {png_path}")
 
