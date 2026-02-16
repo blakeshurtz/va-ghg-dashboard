@@ -8,7 +8,7 @@ rank,facility_name,parent_company,max_co2e_metric_tons,subparts
 7,Tenaska Virginia Generating Station,Tenaska Inc,1529451,"D"
 8,Virginia City Hybrid Energy Center,Dominion Energy,1287423,"D"
 9,ADVANSIX INCORPORATED - HOPEWELL,AdvanSix Inc,1227774,"C,G,PP"
-10,WestRock Virginia, Covington,WestRock Co,1170413,"AA,C,TT"
+10,"WestRock Virginia, Covington",WestRock Co,1170413,"AA,C,TT"
 11,Bear Garden Generating Station,Dominion Energy,1146397,"C,D"
 12,Buchanan Mine #1,Coronado Group LLC,1092629,"FF"
 13,Deep Mine 41,Alpha Metallurgical Resources Inc,1001498,"FF"
