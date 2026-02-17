@@ -193,6 +193,7 @@ def _mosaic_tiles_to_tif(
                 "tiled": True,
                 "blockxsize": 512,
                 "blockysize": 512,
+                "BIGTIFF": "IF_SAFER",
             }
         )
 
@@ -283,6 +284,7 @@ def _crop_dem_to_boundary_bounds(
                 "tiled": True,
                 "blockxsize": 512,
                 "blockysize": 512,
+                "BIGTIFF": "IF_SAFER",
             }
         )
 
@@ -328,6 +330,7 @@ def _reproject_dem(
                 "tiled": True,
                 "blockxsize": 512,
                 "blockysize": 512,
+                "BIGTIFF": "IF_SAFER",
             }
         )
 
@@ -379,6 +382,7 @@ def _clip_to_boundary(
                 "tiled": True,
                 "blockxsize": 512,
                 "blockysize": 512,
+                "BIGTIFF": "IF_SAFER",
             }
         )
 
@@ -488,6 +492,7 @@ def _write_terrain_tint_png(
                     "dtype": "uint8",
                     "nodata": None,
                     "compress": "deflate",
+                    "BIGTIFF": "IF_SAFER",
                 }
             )
             tif_profile.pop("photometric", None)
