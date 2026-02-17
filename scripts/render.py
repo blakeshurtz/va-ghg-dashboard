@@ -106,9 +106,14 @@ def _polygon_to_mpl_path(polygon: Polygon) -> MplPath:
     codes: list[int] = []
 
     def add_ring(coords) -> None:
-        ring = list(coords)
+        try:
+            ring = list(coords)
+        except Exception:
+            return
         if len(ring) < 3:
             return
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
         for index, (x_coord, y_coord) in enumerate(ring):
             vertices.append((float(x_coord), float(y_coord)))
             if index == 0:
@@ -118,9 +123,16 @@ def _polygon_to_mpl_path(polygon: Polygon) -> MplPath:
             else:
                 codes.append(MplPath.LINETO)
 
-    add_ring(polygon.exterior.coords)
-    for interior in polygon.interiors:
-        add_ring(interior.coords)
+    try:
+        add_ring(polygon.exterior.coords)
+    except Exception:
+        return MplPath(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
+
+    try:
+        for interior in polygon.interiors:
+            add_ring(interior.coords)
+    except Exception:
+        pass
 
     if not vertices:
         return MplPath(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
@@ -156,7 +168,17 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
     else:
         polygons = []
 
-    paths = [_polygon_to_mpl_path(poly) for poly in polygons if not poly.is_empty]
+    paths: list[MplPath] = []
+    for poly in polygons:
+        if poly.is_empty:
+            continue
+        repaired = repair_geometry(poly)
+        if repaired is None or repaired.is_empty or not isinstance(repaired, Polygon):
+            continue
+        polygon_path = _polygon_to_mpl_path(repaired)
+        if len(polygon_path.vertices) == 0:
+            continue
+        paths.append(polygon_path)
     if not paths:
         return None
 
