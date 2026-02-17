@@ -5,14 +5,57 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Iterable
+import warnings
 
+import fiona
 import geopandas as gpd
 import pandas as pd
+from shapely.geometry import shape
 
 from scripts.geometry_utils import repair_geometry
 
 
 EPSG_4326 = "EPSG:4326"
+
+
+def _read_vector_file(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
+    """Read a vector file with resilient fallbacks for malformed features."""
+    try:
+        return gpd.read_file(path, layer=layer) if layer else gpd.read_file(path)
+    except Exception as primary_exc:
+        try:
+            # Fiona's driver path can sometimes read datasets pyogrio rejects.
+            return gpd.read_file(path, layer=layer, engine="fiona") if layer else gpd.read_file(path, engine="fiona")
+        except Exception:
+            features: list[dict] = []
+            skipped = 0
+            with fiona.open(path, layer=layer) as src:
+                src_crs = src.crs_wkt or src.crs
+                for record in src:
+                    geometry = record.get("geometry")
+                    if geometry is None:
+                        skipped += 1
+                        continue
+                    try:
+                        geom = shape(geometry)
+                    except Exception:
+                        skipped += 1
+                        continue
+
+                    properties = record.get("properties")
+                    features.append({"type": "Feature", "geometry": geom.__geo_interface__, "properties": dict(properties)})
+
+            if not features:
+                raise primary_exc
+
+            if skipped:
+                warnings.warn(
+                    f"Skipped {skipped} malformed feature(s) while reading '{path}'.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
+            return gpd.GeoDataFrame.from_features(features, crs=src_crs)
 
 
 def _is_geojson_sequence(path: Path) -> bool:
@@ -73,7 +116,7 @@ def _sanitize_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoDataFra
 
 def load_va_boundary(path: str) -> gpd.GeoDataFrame:
     """Load the Virginia boundary file as a GeoDataFrame."""
-    gdf = gpd.read_file(path)
+    gdf = _read_vector_file(path)
     if gdf.empty:
         raise ValueError(f"Boundary file '{path}' is empty.")
     return _sanitize_geometries(gdf, label=f"Boundary file '{path}'")
@@ -85,7 +128,7 @@ def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
     if _is_geojson_sequence(vector_path):
         gdf = _load_geojson_sequence(vector_path)
     else:
-        gdf = gpd.read_file(path, layer=layer) if layer else gpd.read_file(path)
+        gdf = _read_vector_file(path, layer=layer)
     if gdf.empty:
         layer_msg = f" (layer='{layer}')" if layer else ""
         raise ValueError(f"Vector file '{path}'{layer_msg} is empty.")
