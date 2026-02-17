@@ -18,13 +18,13 @@ layout:
 paths:
   va_boundary: data/boundaries/va_boundary_20m_fixed.geojson
   va_boundary_path: data/boundaries/va_boundary_20m_fixed.geojson
-  icons_source_dir: icons/original
+  icons_source_dir: icons/old
   terrain_raw_dir: layers/terrain/raw
   terrain_processed_dir: layers/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
-  icons_dir: icons/small
+  icons_dir: icons/old
   pipelines: layers/natural_gas_pipelines/pipelines_us.gpkg
   pipelines_layer: pipelines_us
   railroads: layers/railroads/railroads
@@ -33,26 +33,28 @@ paths:
   incorporated_places: layers/incorporated_places/incorporated_places/Incorporated Places_20250824_023605_chunk0000.geojson
 
 icons:
-  default: icon_v2_C
+  default: manufacturing.jpg
   by_subparts:
-    "C": icon_v2_C
-    "C,HH": icon_v2_C_HH
-    "C,Q": icon_v2_C_Q
-    "C,W": icon_v2_C_W
-    "C,S": icon_v2_C_S
-    "C,I": icon_v2_C_I
-    "C,II": icon_v2_C_II
-    "AA,C": icon_v2_AA_C
-    "DD": icon_v2_DD
-    "C,N": icon_v2_C_N
-    "TT": icon_v2_TT
+    "C": factory_C.jpg
+    "C,HH": CHH_furnace.jpg
+    "C,Q": CQ_tanks.jpg
+    "C,W": CW_clarifier.jpg
+    "C,S": CS_steel.jpg
+    "C,I": manufacturing.jpg
+    "C,II": manufacturing.jpg
+    "AA,C": manufacturing.jpg
+    "DD": gas.jpg
+    "C,N": chemical.jpg
+    "TT": manufacturing.jpg
     "FF": coal.jpg
     "D": power.jpg
     "C,D": power.jpg
     "C,G,PP": chemical.jpg
     "C,H": cement.jpg
-    "C,TT": icon_v2_TT
-    "AA,C,TT": icon_v2_AA_C
+    "C,TT": manufacturing.jpg
+    "AA,C,TT": manufacturing.jpg
+    "HH": HH_ingot.jpg
+    "NN,W": NNW_drop.jpg
 
 crs:
   map_crs: EPSG:5070
@@ -96,39 +98,39 @@ style:
   # Pipelines (teal)
   pipelines_color: "#9D00FF"
   pipelines_linewidth: 0.55
-  pipelines_alpha: 0.45
+  pipelines_alpha: 0.55
   pipelines_zorder: 2.0
 
   # Railroads (cool light gray, subtle)
   railroads_color: "#d7dde6"
   railroads_linewidth: 0.45
-  railroads_alpha: 0.28
+  railroads_alpha: 0.45
   railroads_zorder: 2.1
 
   # Roads — Google-ish hierarchy via thickness + opacity
   highways_color: "#fff2b3"           # brightest roads
   highways_linewidth: 1.25
-  highways_alpha: 0.42
+  highways_alpha: 0.55
   highways_zorder: 2.4
 
   primary_roads_color: "#ffd27a"
   primary_roads_linewidth: 0.85
-  primary_roads_alpha: 0.34
+  primary_roads_alpha: 0.50
   primary_roads_zorder: 2.3
 
   secondary_roads_color: "#f3e6c8"
   secondary_roads_linewidth: 0.55
-  secondary_roads_alpha: 0.22
+  secondary_roads_alpha: 0.35
   secondary_roads_zorder: 2.2
 
   # Places (quiet)
   incorporated_places_color: "#9aa7b4"
   incorporated_places_linewidth: 0.35
-  incorporated_places_alpha: 0.18
+  incorporated_places_alpha: 0.30
   incorporated_places_zorder: 1.7
 
-  # Ports (keep cyan but slightly softer so it doesn’t fight water)
+  # Ports (keep cyan but slightly softer so it doesn't fight water)
   principal_ports_color: "#4dd0e1"
-  principal_ports_alpha: 0.25
+  principal_ports_alpha: 0.40
   principal_ports_marker_size: 9
   principal_ports_zorder: 2.6
