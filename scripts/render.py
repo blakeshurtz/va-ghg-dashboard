@@ -154,24 +154,18 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
     if valid_boundary.empty:
         return None
 
-    try:
-        geometry = valid_boundary.geometry.union_all()
-    except Exception:
-        # As a final fallback, attempt to repair all geometries before unioning.
-        repaired = valid_boundary.copy()
-        repaired["geometry"] = [repair_geometry(geom) for geom in repaired.geometry]
-        repaired = repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
-        if repaired.empty:
-            return None
-        geometry = repaired.geometry.union_all()
+    polygons: list[Polygon] = []
+    for geom in valid_boundary.geometry:
+        repaired_geom = repair_geometry(geom)
+        if repaired_geom is None or repaired_geom.is_empty:
+            continue
 
-    polygons: list[Polygon]
-    if isinstance(geometry, Polygon):
-        polygons = [geometry]
-    elif isinstance(geometry, MultiPolygon):
-        polygons = list(geometry.geoms)
-    else:
-        polygons = []
+        if isinstance(repaired_geom, Polygon):
+            polygons.append(repaired_geom)
+            continue
+
+        if isinstance(repaired_geom, MultiPolygon):
+            polygons.extend([poly for poly in repaired_geom.geoms if not poly.is_empty])
 
     paths: list[MplPath] = []
     for poly in polygons:
