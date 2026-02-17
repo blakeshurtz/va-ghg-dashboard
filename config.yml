@@ -35,26 +35,26 @@ paths:
 
 icons:
   apply_to_all_facilities: true
-  default: manufacturing.jpg
+  default: icon_v2_C
   by_subparts:
-    "C": factory_C.jpg
-    "C,HH": CHH_furnace.jpg
-    "C,Q": CQ_tanks.jpg
-    "C,W": CW_clarifier.jpg
-    "C,S": CS_steel.jpg
-    "C,I": manufacturing.jpg
-    "C,II": manufacturing.jpg
-    "AA,C": paper.jpg
-    "DD": gas.jpg
-    "C,N": chemical.jpg
-    "TT": gas.jpg
+    "C": icon_v2_C
+    "C,HH": icon_v2_C_HH
+    "C,Q": icon_v2_C_Q
+    "C,W": icon_v2_C_W
+    "C,S": icon_v2_C_S
+    "C,I": icon_v2_C_I
+    "C,II": icon_v2_C_II
+    "AA,C": icon_v2_AA_C
+    "DD": icon_v2_DD
+    "C,N": icon_v2_C_N
+    "TT": icon_v2_TT
     "FF": coal.jpg
     "D": power.jpg
     "C,D": power.jpg
     "C,G,PP": chemical.jpg
     "C,H": cement.jpg
-    "C,TT": generation.jpg
-    "AA,C,TT": paper.jpg
+    "C,TT": icon_v2_TT
+    "AA,C,TT": icon_v2_AA_C
 
 crs:
   map_crs: EPSG:5070
