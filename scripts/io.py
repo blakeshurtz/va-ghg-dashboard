@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Iterable
 
@@ -10,6 +11,41 @@ import pandas as pd
 
 
 EPSG_4326 = "EPSG:4326"
+
+
+def _is_geojson_sequence(path: Path) -> bool:
+    """Return True when a .geojson file is newline-delimited GeoJSON features."""
+    if path.suffix.lower() not in {".geojson", ".json"}:
+        return False
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            return stripped.startswith('{"type": "Feature"') or stripped.startswith('{"type":"Feature"')
+    return False
+
+
+def _load_geojson_sequence(path: Path) -> gpd.GeoDataFrame:
+    """Load newline-delimited GeoJSON feature files as a GeoDataFrame."""
+    features: list[dict] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            record = json.loads(stripped)
+            record_type = record.get("type")
+            if record_type == "Feature":
+                features.append(record)
+            elif record_type == "FeatureCollection":
+                features.extend(record.get("features", []))
+
+    if not features:
+        raise ValueError(f"GeoJSON sequence file '{path}' contains no features.")
+
+    return gpd.GeoDataFrame.from_features(features, crs=EPSG_4326)
 
 
 def _sanitize_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoDataFrame:
@@ -61,7 +97,11 @@ def load_va_boundary(path: str) -> gpd.GeoDataFrame:
 
 def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
     """Load a geospatial layer from a vector file (GeoJSON/GPKG/shapefile)."""
-    gdf = gpd.read_file(path, layer=layer) if layer else gpd.read_file(path)
+    vector_path = Path(path)
+    if _is_geojson_sequence(vector_path):
+        gdf = _load_geojson_sequence(vector_path)
+    else:
+        gdf = gpd.read_file(path, layer=layer) if layer else gpd.read_file(path)
     if gdf.empty:
         layer_msg = f" (layer='{layer}')" if layer else ""
         raise ValueError(f"Vector file '{path}'{layer_msg} is empty.")
