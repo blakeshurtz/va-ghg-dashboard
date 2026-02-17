@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
 import matplotlib.image as mpimg
+import pandas as pd
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
 
@@ -73,71 +75,69 @@ def _resolve_icon_path(icon_dir: Path, icon_name: str) -> Path | None:
     return None
 
 
-def _primary_subpart(subparts: str) -> str:
-    parts = [part.strip().upper() for part in str(subparts or "").split(",") if part.strip()]
-    return parts[0] if parts else "UNK"
-
-
 def draw_points_with_facility_icons(
     map_ax,
     points_gdf: gpd.GeoDataFrame,
     cfg: dict[str, Any],
 ) -> None:
-    """Draw facilities with icons by subpart mapping, with subpart text fallback."""
+    """Draw facilities with icons by subpart mapping.
+
+    Icon size scales with each facility's GHG emissions quantity.
+    """
     style = cfg["style"]
     if points_gdf.empty:
         return
 
     icon_dir = Path(cfg.get("paths", {}).get("icons_dir", "icons"))
     default_icon, icon_by_subparts = _load_icon_mappings(cfg)
-    apply_icons_to_all = bool(cfg.get("icons", {}).get("apply_to_all_facilities", True))
-    icon_zoom = float(style.get("top20_icon_zoom", 0.09))
-    non_top20_label_size = float(style.get("non_top20_label_size", 5))
-    non_top20_label_color = style.get("non_top20_label_color", "#dbe8f5")
+    base_icon_zoom = float(style.get("icon_zoom", 0.085))
+    min_zoom_scale = float(style.get("icon_zoom_scale_min", 0.75))
+    max_zoom_scale = float(style.get("icon_zoom_scale_max", 1.35))
+    emissions_col = str(style.get("icon_size_emissions_col", "ghg_quantity_metric_tons_co2e"))
 
     points = points_gdf.copy()
     if "subparts" not in points.columns:
         points["subparts"] = ""
-    if "_is_top20" not in points.columns:
-        points["_is_top20"] = False
+
+    emissions_values = None
+    if emissions_col in points.columns:
+        emissions_values = points[emissions_col]
+
+    if emissions_values is not None:
+        emissions_values = pd.to_numeric(emissions_values, errors="coerce").clip(lower=0)
+        emission_min = float(emissions_values.min(skipna=True))
+        emission_max = float(emissions_values.max(skipna=True))
+    else:
+        emission_min = 0.0
+        emission_max = 0.0
+
+    emission_span = emission_max - emission_min
 
     icon_cache: dict[str, Any] = {}
     for _, row in points.iterrows():
-        should_try_icon = apply_icons_to_all or bool(row.get("_is_top20", False))
-        if not should_try_icon:
-            map_ax.text(
-                row.geometry.x,
-                row.geometry.y,
-                _primary_subpart(row["subparts"]),
-                color=non_top20_label_color,
-                fontsize=non_top20_label_size,
-                ha="center",
-                va="center",
-                zorder=6,
-            )
-            continue
-
         subparts = row["subparts"]
         normalized_subparts = _normalize_subparts(subparts)
         icon_name = icon_by_subparts.get(normalized_subparts, default_icon)
         icon_path = _resolve_icon_path(icon_dir, icon_name)
         if icon_path is None:
-            map_ax.text(
-                row.geometry.x,
-                row.geometry.y,
-                _primary_subpart(row["subparts"]),
-                color=non_top20_label_color,
-                fontsize=non_top20_label_size,
-                ha="center",
-                va="center",
-                zorder=6,
-            )
             continue
 
         if icon_name not in icon_cache:
             icon_cache[icon_name] = _load_icon(icon_path)
 
-        image = OffsetImage(icon_cache[icon_name], zoom=icon_zoom)
+        row_emissions = row.get(emissions_col)
+        zoom_scale = 1.0
+        if emission_span > 0 and row_emissions is not None:
+            try:
+                numeric_emissions = float(row_emissions)
+            except (TypeError, ValueError):
+                numeric_emissions = math.nan
+
+            if not math.isnan(numeric_emissions):
+                normalized = (max(numeric_emissions, 0.0) - emission_min) / emission_span
+                zoom_scale = min_zoom_scale + normalized * (max_zoom_scale - min_zoom_scale)
+
+        image = OffsetImage(icon_cache[icon_name], zoom=base_icon_zoom * zoom_scale)
         marker = AnnotationBbox(
             image,
             (row.geometry.x, row.geometry.y),

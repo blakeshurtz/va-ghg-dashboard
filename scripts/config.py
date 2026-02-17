@@ -16,8 +16,6 @@ REQUIRED_STYLE_KEYS = {
     "background",
     "boundary_linewidth",
     "boundary_alpha",
-    "points_size",
-    "points_alpha",
 }
 
 
@@ -104,12 +102,6 @@ def validate_config(cfg: dict[str, Any]) -> None:
                 "Set paths.emissions_csv to null/empty to skip points rendering."
             )
 
-
-    top20_csv = paths.get("top20_csv")
-    if top20_csv is not None and str(top20_csv).strip():
-        top20_path = Path(str(top20_csv))
-        if not top20_path.exists():
-            raise FileNotFoundError(f"Configured top-20 CSV not found: {top20_path}")
 
     va_boundary_path = paths.get("va_boundary_path")
     if va_boundary_path is not None and str(va_boundary_path).strip():

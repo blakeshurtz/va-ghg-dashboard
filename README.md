@@ -13,7 +13,7 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 - Renders a 16:9 map + right-side panel layout in dark theme.
 - Produces two render targets:
   - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + 2023 facilities where mapped subparts render as icons and unmapped facilities are labeled by primary subpart code (`layout_points_top20_icons.png`)
+  - **points**: boundary + 2023 facilities where mapped subparts render as icons sized by each facility's GHG quantity (`layout_points_icons_scaled.png`)
 - Generates terrain preprocessing artifacts when DEM tiles are available (clipped DEM, hillshade, and terrain tint overlay).
 
 ---
@@ -81,7 +81,7 @@ python -m scripts.build --config config.yml --target points
 Expected outputs (default config):
 
 - `output/layout_base.png`
-- `output/layout_points_top20_icons.png`
+- `output/layout_points_icons_scaled.png`
 
 ---
 
@@ -128,7 +128,7 @@ If no tiles are found in `data/terrain/raw/`, the build prints a warning and con
 - `render.outputs`: `base_png`, `points_png`
 - `layout`: `map_frac`, `panel_frac`
 - `paths`: `va_boundary`
-- `style`: `background`, `boundary_linewidth`, `boundary_alpha`, `points_size`, `points_alpha`
+- `style`: `background`, `boundary_linewidth`, `boundary_alpha`
 
 If configured, `paths.emissions_csv` must exist to render the `points` target.
 

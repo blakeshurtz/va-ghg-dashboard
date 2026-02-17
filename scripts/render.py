@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib.path import Path as MplPath
+from matplotlib.patches import PathPatch
+import numpy as np
 import rasterio
+from shapely.geometry import MultiPolygon, Polygon
 from rasterio.warp import transform_bounds
 
 from scripts.io import (
@@ -90,8 +94,52 @@ def _save_figure(fig, path: Path, dpi: int) -> None:
     plt.close(fig)
 
 
-def _draw_terrain_overlay(map_ax, cfg: dict[str, Any]) -> None:
-    """Draw terrain tint PNG aligned to the map CRS when terrain outputs are available."""
+def _polygon_to_mpl_path(polygon: Polygon) -> MplPath:
+    vertices: list[tuple[float, float]] = []
+    codes: list[int] = []
+
+    def add_ring(coords) -> None:
+        ring = list(coords)
+        if len(ring) < 3:
+            return
+        for index, (x_coord, y_coord) in enumerate(ring):
+            vertices.append((float(x_coord), float(y_coord)))
+            if index == 0:
+                codes.append(MplPath.MOVETO)
+            elif index == len(ring) - 1:
+                codes.append(MplPath.CLOSEPOLY)
+            else:
+                codes.append(MplPath.LINETO)
+
+    add_ring(polygon.exterior.coords)
+    for interior in polygon.interiors:
+        add_ring(interior.coords)
+
+    if not vertices:
+        return MplPath(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
+    return MplPath(np.asarray(vertices, dtype=float), np.asarray(codes, dtype=np.uint8))
+
+
+def _boundary_clip_patch(boundary) -> PathPatch | None:
+    geometry = boundary.geometry.union_all()
+    polygons: list[Polygon]
+    if isinstance(geometry, Polygon):
+        polygons = [geometry]
+    elif isinstance(geometry, MultiPolygon):
+        polygons = list(geometry.geoms)
+    else:
+        polygons = []
+
+    paths = [_polygon_to_mpl_path(poly) for poly in polygons if not poly.is_empty]
+    if not paths:
+        return None
+
+    clip_path = paths[0] if len(paths) == 1 else MplPath.make_compound_path(*paths)
+    return PathPatch(clip_path, transform=None)
+
+
+def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
+    """Draw terrain tint PNG aligned to the map CRS and clipped to the VA boundary."""
     paths_cfg = cfg.get("paths", {})
     terrain_processed_dir = Path(paths_cfg.get("terrain_processed_dir", "layers/terrain/processed"))
     terrain_tint_name = paths_cfg.get("terrain_tint_png", "terrain_tint_va.png")
@@ -108,13 +156,18 @@ def _draw_terrain_overlay(map_ax, cfg: dict[str, Any]) -> None:
             return
         minx, miny, maxx, maxy = transform_bounds(dem.crs, TARGET_CRS, *dem.bounds, densify_pts=21)
 
-    map_ax.imshow(
+    image_artist = map_ax.imshow(
         terrain_img,
         extent=(minx, maxx, miny, maxy),
         origin="upper",
         interpolation="bilinear",
         zorder=float(cfg.get("style", {}).get("terrain_zorder", 0.5)),
     )
+
+    clip_patch = _boundary_clip_patch(boundary)
+    if clip_patch is not None:
+        clip_patch.set_transform(map_ax.transData)
+        image_artist.set_clip_path(clip_patch)
 
 
 def render_layout_base(cfg: dict[str, Any]) -> Path:
@@ -126,7 +179,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
-    _draw_terrain_overlay(map_ax, cfg)
+    _draw_terrain_overlay(map_ax, boundary, cfg)
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
@@ -138,7 +191,7 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
 
 
 def render_layout_points(cfg: dict[str, Any]) -> Path:
-    """Render 2023 layout with top-20 icons and subpart labels for other facilities."""
+    """Render 2023 layout with facility icons scaled by GHG quantity."""
     emissions_csv = cfg["paths"].get("emissions_csv")
     if not emissions_csv:
         raise ValueError("paths.emissions_csv is not set; cannot render points target.")
@@ -156,27 +209,9 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     points = emissions_to_gdf(points_df, lat_col=lat_col, lon_col=lon_col)
     points = ensure_crs(points, TARGET_CRS)
 
-    top20_csv = cfg["paths"].get("top20_csv")
-    top20_names: set[str] = set()
-    if top20_csv:
-        top20_df = load_emissions_csv(top20_csv)
-        if "facility_name" in top20_df.columns:
-            top20_names = {
-                str(name).strip().casefold()
-                for name in top20_df["facility_name"].dropna().tolist()
-                if str(name).strip()
-            }
-
-    if "facility_name" in points.columns and top20_names:
-        points["_is_top20"] = (
-            points["facility_name"].astype(str).str.strip().str.casefold().isin(top20_names)
-        )
-    else:
-        points["_is_top20"] = False
-
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
-    _draw_terrain_overlay(map_ax, cfg)
+    _draw_terrain_overlay(map_ax, boundary, cfg)
     draw_boundary(map_ax, boundary, cfg)
     if pipelines is not None:
         draw_pipelines(map_ax, pipelines, boundary, cfg)
