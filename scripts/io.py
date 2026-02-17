@@ -9,6 +9,8 @@ from typing import Iterable
 import geopandas as gpd
 import pandas as pd
 
+from scripts.geometry_utils import repair_geometry
+
 
 EPSG_4326 = "EPSG:4326"
 
@@ -59,25 +61,7 @@ def _sanitize_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoDataFra
     if cleaned.empty:
         raise ValueError(f"{label} has no geometries.")
 
-    repaired_geometries = []
-    for geom in cleaned.geometry:
-        if geom is None or geom.is_empty:
-            repaired_geometries.append(None)
-            continue
-
-        candidate = geom
-        try:
-            is_valid = bool(candidate.is_valid)
-        except Exception:
-            is_valid = False
-
-        if not is_valid:
-            try:
-                candidate = candidate.buffer(0)
-            except Exception:
-                candidate = None
-
-        repaired_geometries.append(candidate)
+    repaired_geometries = [repair_geometry(geom) for geom in cleaned.geometry]
 
     cleaned["geometry"] = repaired_geometries
     cleaned = cleaned[cleaned.geometry.notna() & ~cleaned.geometry.is_empty].copy()

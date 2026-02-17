@@ -6,30 +6,15 @@ from typing import Any
 
 import geopandas as gpd
 
+from scripts.geometry_utils import repair_geometry
+
 
 def _repair_geometry_frame(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     repaired = gdf[gdf.geometry.notna()].copy()
     if repaired.empty:
         return repaired
 
-    geoms = []
-    for geom in repaired.geometry:
-        if geom is None or geom.is_empty:
-            geoms.append(None)
-            continue
-        candidate = geom
-        try:
-            valid = bool(candidate.is_valid)
-        except Exception:
-            valid = False
-        if not valid:
-            try:
-                candidate = candidate.buffer(0)
-            except Exception:
-                candidate = None
-        geoms.append(candidate)
-
-    repaired["geometry"] = geoms
+    repaired["geometry"] = [repair_geometry(geom) for geom in repaired.geometry]
     return repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
 
 
@@ -45,7 +30,8 @@ def _safe_clip(layer_gdf: gpd.GeoDataFrame, boundary_gdf: gpd.GeoDataFrame) -> g
             return gpd.clip(layer_fixed, boundary_fixed)
         except Exception:
             minx, miny, maxx, maxy = boundary_fixed.total_bounds
-            return layer_fixed.cx[minx:maxx, miny:maxy]
+            clipped_bbox = layer_fixed.cx[minx:maxx, miny:maxy]
+            return _repair_geometry_frame(clipped_bbox)
 
 
 def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -> None:

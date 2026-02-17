@@ -25,6 +25,7 @@ from scripts.io import (
 from scripts.layout import apply_dark_theme, create_canvas
 from scripts.map_base import draw_boundary, draw_pipelines, draw_reference_layer, set_extent_to_boundary
 from scripts.points import draw_points_with_facility_icons
+from scripts.geometry_utils import repair_geometry
 
 TARGET_CRS = "EPSG:3857"
 
@@ -131,19 +132,17 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
     if valid_boundary.empty:
         return None
 
-    invalid_mask = ~valid_boundary.geometry.is_valid
-    if invalid_mask.any():
-        valid_boundary.loc[invalid_mask, "geometry"] = valid_boundary.loc[invalid_mask, "geometry"].buffer(0)
-        valid_boundary = valid_boundary[valid_boundary.geometry.notna() & ~valid_boundary.geometry.is_empty].copy()
-        if valid_boundary.empty:
-            return None
+    valid_boundary["geometry"] = [repair_geometry(geom) for geom in valid_boundary.geometry]
+    valid_boundary = valid_boundary[valid_boundary.geometry.notna() & ~valid_boundary.geometry.is_empty].copy()
+    if valid_boundary.empty:
+        return None
 
     try:
         geometry = valid_boundary.geometry.union_all()
     except Exception:
         # As a final fallback, attempt to repair all geometries before unioning.
         repaired = valid_boundary.copy()
-        repaired["geometry"] = repaired.geometry.buffer(0)
+        repaired["geometry"] = [repair_geometry(geom) for geom in repaired.geometry]
         repaired = repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
         if repaired.empty:
             return None
