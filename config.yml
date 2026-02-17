@@ -16,8 +16,8 @@ layout:
   panel_frac: 0.34
 
 paths:
-  va_boundary: data/boundaries/va_boundary_20m.geojson
-  va_boundary_path: data/boundaries/va_boundary_20m.geojson
+  va_boundary: data/boundaries/va_boundary_20m_fixed.geojson
+  va_boundary_path: data/boundaries/va_boundary_20m_fixed.geojson
   icons_source_dir: icons/original
   terrain_raw_dir: layers/terrain/raw
   terrain_processed_dir: layers/terrain/processed
