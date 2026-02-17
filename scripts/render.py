@@ -127,7 +127,28 @@ def _polygon_to_mpl_path(polygon: Polygon) -> MplPath:
 
 
 def _boundary_clip_patch(boundary) -> PathPatch | None:
-    geometry = boundary.geometry.union_all()
+    valid_boundary = boundary[boundary.geometry.notna()].copy()
+    if valid_boundary.empty:
+        return None
+
+    invalid_mask = ~valid_boundary.geometry.is_valid
+    if invalid_mask.any():
+        valid_boundary.loc[invalid_mask, "geometry"] = valid_boundary.loc[invalid_mask, "geometry"].buffer(0)
+        valid_boundary = valid_boundary[valid_boundary.geometry.notna() & ~valid_boundary.geometry.is_empty].copy()
+        if valid_boundary.empty:
+            return None
+
+    try:
+        geometry = valid_boundary.geometry.union_all()
+    except Exception:
+        # As a final fallback, attempt to repair all geometries before unioning.
+        repaired = valid_boundary.copy()
+        repaired["geometry"] = repaired.geometry.buffer(0)
+        repaired = repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
+        if repaired.empty:
+            return None
+        geometry = repaired.geometry.union_all()
+
     polygons: list[Polygon]
     if isinstance(geometry, Polygon):
         polygons = [geometry]
