@@ -7,6 +7,47 @@ from typing import Any
 import geopandas as gpd
 
 
+def _repair_geometry_frame(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    repaired = gdf[gdf.geometry.notna()].copy()
+    if repaired.empty:
+        return repaired
+
+    geoms = []
+    for geom in repaired.geometry:
+        if geom is None or geom.is_empty:
+            geoms.append(None)
+            continue
+        candidate = geom
+        try:
+            valid = bool(candidate.is_valid)
+        except Exception:
+            valid = False
+        if not valid:
+            try:
+                candidate = candidate.buffer(0)
+            except Exception:
+                candidate = None
+        geoms.append(candidate)
+
+    repaired["geometry"] = geoms
+    return repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
+
+
+def _safe_clip(layer_gdf: gpd.GeoDataFrame, boundary_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    try:
+        return gpd.clip(layer_gdf, boundary_gdf)
+    except Exception:
+        layer_fixed = _repair_geometry_frame(layer_gdf)
+        boundary_fixed = _repair_geometry_frame(boundary_gdf)
+        if layer_fixed.empty or boundary_fixed.empty:
+            return layer_fixed.iloc[0:0]
+        try:
+            return gpd.clip(layer_fixed, boundary_fixed)
+        except Exception:
+            minx, miny, maxx, maxy = boundary_fixed.total_bounds
+            return layer_fixed.cx[minx:maxx, miny:maxy]
+
+
 def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -> None:
     """Draw boundary outline and optional fill on the map axis."""
     style = cfg["style"]
@@ -29,7 +70,7 @@ def draw_pipelines(
 ) -> None:
     """Draw natural gas pipelines clipped to the boundary extent."""
     style = cfg["style"]
-    clipped = gpd.clip(pipelines_gdf, boundary_gdf)
+    clipped = _safe_clip(pipelines_gdf, boundary_gdf)
     if clipped.empty:
         return
 
@@ -54,7 +95,7 @@ def draw_reference_layer(
     marker_size: float = 6.0,
 ) -> None:
     """Draw a reference vector layer clipped to the boundary extent."""
-    clipped = gpd.clip(layer_gdf, boundary_gdf)
+    clipped = _safe_clip(layer_gdf, boundary_gdf)
     if clipped.empty:
         return
 
