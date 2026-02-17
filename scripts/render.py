@@ -12,6 +12,7 @@ from matplotlib.patches import PathPatch
 import numpy as np
 import rasterio
 from shapely.geometry import MultiPolygon, Polygon
+from shapely.errors import GEOSException
 from rasterio.transform import array_bounds
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 
@@ -118,9 +119,12 @@ def _polygon_to_mpl_path(polygon: Polygon) -> MplPath:
             else:
                 codes.append(MplPath.LINETO)
 
-    add_ring(polygon.exterior.coords)
-    for interior in polygon.interiors:
-        add_ring(interior.coords)
+    try:
+        add_ring(polygon.exterior.coords)
+        for interior in polygon.interiors:
+            add_ring(interior.coords)
+    except GEOSException:
+        return MplPath(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
 
     if not vertices:
         return MplPath(np.empty((0, 2), dtype=float), np.empty((0,), dtype=np.uint8))
@@ -156,7 +160,23 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
     else:
         polygons = []
 
-    paths = [_polygon_to_mpl_path(poly) for poly in polygons if not poly.is_empty]
+    paths: list[MplPath] = []
+    for poly in polygons:
+        repaired_poly = repair_geometry(poly)
+        if repaired_poly is None or repaired_poly.is_empty:
+            continue
+        if not isinstance(repaired_poly, Polygon):
+            if isinstance(repaired_poly, MultiPolygon):
+                for sub_poly in repaired_poly.geoms:
+                    sub_path = _polygon_to_mpl_path(sub_poly)
+                    if len(sub_path.vertices):
+                        paths.append(sub_path)
+            continue
+
+        poly_path = _polygon_to_mpl_path(repaired_poly)
+        if len(poly_path.vertices):
+            paths.append(poly_path)
+
     if not paths:
         return None
 

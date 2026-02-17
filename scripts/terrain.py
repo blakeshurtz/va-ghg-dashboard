@@ -19,6 +19,8 @@ from rasterio.windows import Window, bounds as window_bounds, from_bounds, trans
 from shapely.errors import GEOSException
 from shapely.validation import explain_validity
 
+from scripts.geometry_utils import repair_geometry
+
 
 @dataclass(frozen=True)
 class TerrainOutputs:
@@ -147,11 +149,7 @@ def _load_boundary(boundary_path: Path) -> gpd.GeoDataFrame:
     if boundary.empty:
         raise ValueError(f"Boundary file has no geometries: {boundary_path}")
 
-    invalid_mask = ~boundary.geometry.is_valid
-    if invalid_mask.any():
-        invalid_count = int(invalid_mask.sum())
-        print(f"[WARN] Boundary contains {invalid_count} invalid geometry(ies); attempting repair with buffer(0).")
-        boundary.loc[invalid_mask, "geometry"] = boundary.loc[invalid_mask, "geometry"].buffer(0)
+    boundary["geometry"] = [repair_geometry(geom) for geom in boundary.geometry]
 
     boundary = boundary[~boundary.geometry.is_empty].copy()
     if boundary.empty:
@@ -384,6 +382,12 @@ def _clip_to_boundary(
     window_size: int,
 ) -> None:
     boundary_projected = boundary.to_crs(dem_crs)
+    boundary_projected["geometry"] = [repair_geometry(geom) for geom in boundary_projected.geometry]
+    boundary_projected = boundary_projected[
+        boundary_projected.geometry.notna() & ~boundary_projected.geometry.is_empty
+    ].copy()
+    if boundary_projected.empty:
+        raise ValueError("Boundary has no usable geometries after reprojection repair.")
     try:
         geometry = [boundary_projected.geometry.union_all().__geo_interface__]
     except GEOSException as exc:
