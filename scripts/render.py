@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import warnings
 
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
@@ -161,6 +162,25 @@ def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
         if dem.crs is None:
             return
 
+        terrain_height, terrain_width = terrain_img.shape[:2]
+        source_transform = dem.transform
+        if (terrain_width, terrain_height) != (dem.width, dem.height):
+            mismatch_message = (
+                "Terrain tint dimensions do not match DEM grid dimensions; "
+                f"terrain_tint={terrain_width}x{terrain_height}, dem={dem.width}x{dem.height}. "
+                "Using DEM bounds to derive src_transform for reprojection. "
+                "Regenerate terrain_tint_va.png from the same DEM grid to avoid potential misalignment."
+            )
+            warnings.warn(mismatch_message, RuntimeWarning, stacklevel=2)
+            source_transform = rasterio.transform.from_bounds(
+                dem.bounds.left,
+                dem.bounds.bottom,
+                dem.bounds.right,
+                dem.bounds.top,
+                terrain_width,
+                terrain_height,
+            )
+
         if dem.crs == target_crs:
             minx, miny, maxx, maxy = transform_bounds(dem.crs, target_crs, *dem.bounds, densify_pts=21)
         else:
@@ -183,7 +203,7 @@ def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
                 reproject(
                     source=src_bands[band_idx],
                     destination=reprojected[band_idx],
-                    src_transform=dem.transform,
+                    src_transform=source_transform,
                     src_crs=dem.crs,
                     dst_transform=dst_transform,
                     dst_crs=target_crs,
