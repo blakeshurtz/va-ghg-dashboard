@@ -16,6 +16,8 @@ from rasterio.shutil import copy as rio_copy
 from rasterio.transform import Affine
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 from rasterio.windows import Window, bounds as window_bounds, from_bounds, transform as window_transform
+from shapely.errors import GEOSException
+from shapely.validation import explain_validity
 
 
 @dataclass(frozen=True)
@@ -140,6 +142,29 @@ def _load_boundary(boundary_path: Path) -> gpd.GeoDataFrame:
         raise ValueError(f"Boundary file is empty: {boundary_path}")
     if boundary.crs is None:
         raise ValueError(f"Boundary file has no CRS: {boundary_path}")
+
+    boundary = boundary[boundary.geometry.notna()].copy()
+    if boundary.empty:
+        raise ValueError(f"Boundary file has no geometries: {boundary_path}")
+
+    invalid_mask = ~boundary.geometry.is_valid
+    if invalid_mask.any():
+        invalid_count = int(invalid_mask.sum())
+        print(f"[WARN] Boundary contains {invalid_count} invalid geometry(ies); attempting repair with buffer(0).")
+        boundary.loc[invalid_mask, "geometry"] = boundary.loc[invalid_mask, "geometry"].buffer(0)
+
+    boundary = boundary[~boundary.geometry.is_empty].copy()
+    if boundary.empty:
+        raise ValueError(f"Boundary file has no non-empty geometries after validation: {boundary_path}")
+
+    remaining_invalid = boundary[~boundary.geometry.is_valid]
+    if not remaining_invalid.empty:
+        reason = explain_validity(remaining_invalid.geometry.iloc[0])
+        raise ValueError(
+            "Boundary geometry remains invalid after attempted repair. "
+            f"File={boundary_path}, reason='{reason}'."
+        )
+
     print(f"[INFO] Boundary CRS={boundary.crs}, bounds={tuple(boundary.total_bounds)}")
     return boundary
 
@@ -359,7 +384,13 @@ def _clip_to_boundary(
     window_size: int,
 ) -> None:
     boundary_projected = boundary.to_crs(dem_crs)
-    geometry = [boundary_projected.geometry.union_all().__geo_interface__]
+    try:
+        geometry = [boundary_projected.geometry.union_all().__geo_interface__]
+    except GEOSException as exc:
+        raise ValueError(
+            "Boundary union failed during terrain clipping. Ensure boundary polygons are valid, "
+            "or provide the repaired boundary GeoJSON in config.paths.va_boundary_path."
+        ) from exc
 
     with rasterio.open(src_path) as src:
         bounds = transform_bounds(boundary_projected.crs, src.crs, *boundary_projected.total_bounds)
