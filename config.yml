@@ -94,16 +94,10 @@ style:
   rivers_zorder: 2.05
 
   # Pipelines (teal)
-  pipelines_color: "#23b5d3"
+  pipelines_color: "#9D00FF"
   pipelines_linewidth: 0.55
   pipelines_alpha: 0.45
   pipelines_zorder: 2.0
-
-  # Power transmission (purple-magenta so it’s unmistakable)
-  powerlines_color: "#b26cff"
-  powerlines_linewidth: 0.45
-  powerlines_alpha: 0.35
-  powerlines_zorder: 1.95
 
   # Railroads (cool light gray, subtle)
   railroads_color: "#d7dde6"
@@ -135,57 +129,6 @@ style:
 
   # Ports (keep cyan but slightly softer so it doesn’t fight water)
   principal_ports_color: "#4dd0e1"
-  principal_ports_alpha: 0.75
+  principal_ports_alpha: 0.25
   principal_ports_marker_size: 9
   principal_ports_zorder: 2.6
-
-sector_classification:
-
-  power_plant:
-    subparts: ["C,D"]
-    name: "Power Plant"
-    icon: "power.svg"
-    color: "#D73027"
-    priority: 1
-
-  generation_unit:
-    subparts: ["D"]
-    name: "Generation Unit"
-    icon: "turbine.svg"
-    color: "#FC8D59"
-    priority: 2
-
-  chemical_manufacturing:
-    subparts: ["C,G,PP"]
-    name: "Chemical Manufacturing"
-    icon: "chemical.svg"
-    color: "#7B3294"
-    priority: 3
-
-  pulp_paper:
-    subparts: ["AA,C,TT"]
-    name: "Pulp & Paper"
-    icon: "paper.svg"
-    color: "#1A9850"
-    priority: 4
-
-  coal_mining:
-    subparts: ["FF"]
-    name: "Coal Mining"
-    icon: "mine.svg"
-    color: "#333333"
-    priority: 5
-
-  cement:
-    subparts: ["C,H"]
-    name: "Cement Production"
-    icon: "cement.svg"
-    color: "#8C510A"
-    priority: 6
-
-  industrial:
-    subparts: ["C,TT"]
-    name: "Industrial Manufacturing"
-    icon: "industrial.svg"
-    color: "#4575B4"
-    priority: 7
