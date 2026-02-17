@@ -217,4 +217,19 @@ def ensure_crs(gdf: gpd.GeoDataFrame, target_crs: str) -> gpd.GeoDataFrame:
         raise ValueError("GeoDataFrame has no CRS; cannot reproject.")
     if str(gdf.crs) == target_crs:
         return gdf
-    return gdf.to_crs(target_crs)
+    try:
+        return gdf.to_crs(target_crs)
+    except Exception:
+        # Bulk reprojection can fail when GEOS reconstructs rings from
+        # transformed coordinates.  Fall back to per-feature reprojection
+        # so that only the offending rows are dropped.
+        results = []
+        for idx, row in gdf.iterrows():
+            try:
+                reprojected = gpd.GeoDataFrame([row], crs=gdf.crs).to_crs(target_crs)
+                results.append(reprojected)
+            except Exception:
+                continue
+        if not results:
+            raise ValueError("All geometries failed CRS reprojection.")
+        return gpd.GeoDataFrame(pd.concat(results, ignore_index=True), crs=target_crs)

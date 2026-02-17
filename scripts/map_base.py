@@ -20,14 +20,16 @@ def _repair_geometry_frame(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def _safe_clip(layer_gdf: gpd.GeoDataFrame, boundary_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     try:
-        return gpd.clip(layer_gdf, boundary_gdf)
+        result = gpd.clip(layer_gdf, boundary_gdf)
+        return _repair_geometry_frame(result)
     except Exception:
         layer_fixed = _repair_geometry_frame(layer_gdf)
         boundary_fixed = _repair_geometry_frame(boundary_gdf)
         if layer_fixed.empty or boundary_fixed.empty:
             return layer_fixed.iloc[0:0]
         try:
-            return gpd.clip(layer_fixed, boundary_fixed)
+            result = gpd.clip(layer_fixed, boundary_fixed)
+            return _repair_geometry_frame(result)
         except Exception:
             minx, miny, maxx, maxy = boundary_fixed.total_bounds
             clipped_bbox = layer_fixed.cx[minx:maxx, miny:maxy]
@@ -39,13 +41,20 @@ def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -
     style = cfg["style"]
     fill_color = style.get("boundary_fill")
 
-    boundary_gdf.plot(
-        ax=map_ax,
-        facecolor=fill_color if fill_color else "none",
-        edgecolor=style.get("boundary_edgecolor", "#9fb3c8"),
-        linewidth=float(style["boundary_linewidth"]),
-        alpha=float(style["boundary_alpha"]),
-    )
+    safe_boundary = _repair_geometry_frame(boundary_gdf)
+    if safe_boundary.empty:
+        return
+
+    try:
+        safe_boundary.plot(
+            ax=map_ax,
+            facecolor=fill_color if fill_color else "none",
+            edgecolor=style.get("boundary_edgecolor", "#9fb3c8"),
+            linewidth=float(style["boundary_linewidth"]),
+            alpha=float(style["boundary_alpha"]),
+        )
+    except Exception:
+        pass
 
 
 def draw_pipelines(
@@ -60,13 +69,16 @@ def draw_pipelines(
     if clipped.empty:
         return
 
-    clipped.plot(
-        ax=map_ax,
-        color=style.get("pipelines_color", "#4ba3c7"),
-        linewidth=float(style.get("pipelines_linewidth", 0.4)),
-        alpha=float(style.get("pipelines_alpha", 0.5)),
-        zorder=float(style.get("pipelines_zorder", 2)),
-    )
+    try:
+        clipped.plot(
+            ax=map_ax,
+            color=style.get("pipelines_color", "#4ba3c7"),
+            linewidth=float(style.get("pipelines_linewidth", 0.4)),
+            alpha=float(style.get("pipelines_alpha", 0.5)),
+            zorder=float(style.get("pipelines_zorder", 2)),
+        )
+    except Exception:
+        pass
 
 
 def draw_reference_layer(
@@ -85,24 +97,27 @@ def draw_reference_layer(
     if clipped.empty:
         return
 
-    geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
-    if geom_types <= {"Point", "MultiPoint"}:
+    try:
+        geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
+        if geom_types <= {"Point", "MultiPoint"}:
+            clipped.plot(
+                ax=map_ax,
+                color=color,
+                alpha=alpha,
+                zorder=zorder,
+                markersize=marker_size,
+            )
+            return
+
         clipped.plot(
             ax=map_ax,
             color=color,
+            linewidth=linewidth,
             alpha=alpha,
             zorder=zorder,
-            markersize=marker_size,
         )
-        return
-
-    clipped.plot(
-        ax=map_ax,
-        color=color,
-        linewidth=linewidth,
-        alpha=alpha,
-        zorder=zorder,
-    )
+    except Exception:
+        pass
 
 
 def set_extent_to_boundary(
