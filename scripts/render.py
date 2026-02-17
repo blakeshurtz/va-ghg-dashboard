@@ -35,6 +35,15 @@ def _target_crs(cfg: dict[str, Any]) -> str:
     return str(cfg.get("crs", {}).get("map_crs", TARGET_CRS))
 
 
+def _repair_frame_geometries(frame):
+    cleaned = frame[frame.geometry.notna()].copy()
+    if cleaned.empty:
+        return cleaned
+
+    cleaned["geometry"] = [repair_geometry(geom) for geom in cleaned.geometry]
+    return cleaned[cleaned.geometry.notna() & ~cleaned.geometry.is_empty].copy()
+
+
 def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
     render_cfg = cfg["render"]
     output_dir = Path(render_cfg["output_dir"])
@@ -50,7 +59,11 @@ def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
 
 def _load_boundary_3857(cfg: dict[str, Any]):
     boundary = load_va_boundary(cfg["paths"]["va_boundary"])
-    return ensure_crs(boundary, _target_crs(cfg))
+    projected = ensure_crs(boundary, _target_crs(cfg))
+    repaired = _repair_frame_geometries(projected)
+    if repaired.empty:
+        raise ValueError("Boundary has no usable geometries after reprojection repair.")
+    return repaired
 
 
 def _load_pipelines_3857(cfg: dict[str, Any]):
@@ -60,7 +73,7 @@ def _load_pipelines_3857(cfg: dict[str, Any]):
 
     layer = cfg["paths"].get("pipelines_layer")
     pipelines = load_vector_collection(pipelines_path, layer=layer)
-    return ensure_crs(pipelines, _target_crs(cfg))
+    return _repair_frame_geometries(ensure_crs(pipelines, _target_crs(cfg)))
 
 
 def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -77,7 +90,7 @@ def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
         if not source_path:
             continue
         layer = load_vector_collection(source_path)
-        layers[layer_name] = ensure_crs(layer, _target_crs(cfg))
+        layers[layer_name] = _repair_frame_geometries(ensure_crs(layer, _target_crs(cfg)))
 
     return layers
 
