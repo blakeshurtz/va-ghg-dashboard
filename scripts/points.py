@@ -11,24 +11,24 @@ from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
 
 _DEFAULT_ICON_BY_SUBPARTS = {
-    "C": "factory_C.jpg",
-    "C,HH": "CHH_furnace.jpg",
-    "C,Q": "CQ_tanks.jpg",
-    "C,W": "CW_clarifier.jpg",
-    "C,S": "CS_steel.jpg",
-    "C,I": "manufacturing.jpg",
-    "C,II": "manufacturing.jpg",
-    "AA,C": "paper.jpg",
-    "DD": "gas.jpg",
-    "C,N": "chemical.jpg",
-    "TT": "gas.jpg",
+    "C": "icon_v2_C",
+    "C,HH": "icon_v2_C_HH",
+    "C,Q": "icon_v2_C_Q",
+    "C,W": "icon_v2_C_W",
+    "C,S": "icon_v2_C_S",
+    "C,I": "icon_v2_C_I",
+    "C,II": "icon_v2_C_II",
+    "AA,C": "icon_v2_AA_C",
+    "DD": "icon_v2_DD",
+    "C,N": "icon_v2_C_N",
+    "TT": "icon_v2_TT",
     "FF": "coal.jpg",
     "D": "power.jpg",
     "C,D": "power.jpg",
     "C,G,PP": "chemical.jpg",
     "C,H": "cement.jpg",
-    "C,TT": "generation.jpg",
-    "AA,C,TT": "paper.jpg",
+    "C,TT": "icon_v2_TT",
+    "AA,C,TT": "icon_v2_AA_C",
 }
 
 
@@ -55,6 +55,22 @@ def _load_icon_mappings(cfg: dict[str, Any]) -> tuple[str, dict[str, str]]:
 
 def _load_icon(path: Path):
     return mpimg.imread(path)
+
+
+def _resolve_icon_path(icon_dir: Path, icon_name: str) -> Path | None:
+    raw_path = icon_dir / icon_name
+    if raw_path.exists():
+        return raw_path
+
+    if raw_path.suffix:
+        return None
+
+    for suffix in (".png", ".jpg", ".jpeg"):
+        candidate = icon_dir / f"{icon_name}{suffix}"
+        if candidate.exists():
+            return candidate
+
+    return None
 
 
 def _primary_subpart(subparts: str) -> str:
@@ -104,8 +120,8 @@ def draw_points_with_facility_icons(
         subparts = row["subparts"]
         normalized_subparts = _normalize_subparts(subparts)
         icon_name = icon_by_subparts.get(normalized_subparts, default_icon)
-        icon_path = icon_dir / icon_name
-        if not icon_path.exists():
+        icon_path = _resolve_icon_path(icon_dir, icon_name)
+        if icon_path is None:
             map_ax.text(
                 row.geometry.x,
                 row.geometry.y,
