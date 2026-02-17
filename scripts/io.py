@@ -12,12 +12,51 @@ import pandas as pd
 EPSG_4326 = "EPSG:4326"
 
 
+def _sanitize_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoDataFrame:
+    """Drop empty geometries and best-effort repair invalid shapes.
+
+    Some source datasets contain malformed rings that trigger GEOS failures
+    during clipping/union operations. This helper performs a conservative
+    clean-up pass so downstream rendering can proceed.
+    """
+    cleaned = gdf[gdf.geometry.notna()].copy()
+    if cleaned.empty:
+        raise ValueError(f"{label} has no geometries.")
+
+    repaired_geometries = []
+    for geom in cleaned.geometry:
+        if geom is None or geom.is_empty:
+            repaired_geometries.append(None)
+            continue
+
+        candidate = geom
+        try:
+            is_valid = bool(candidate.is_valid)
+        except Exception:
+            is_valid = False
+
+        if not is_valid:
+            try:
+                candidate = candidate.buffer(0)
+            except Exception:
+                candidate = None
+
+        repaired_geometries.append(candidate)
+
+    cleaned["geometry"] = repaired_geometries
+    cleaned = cleaned[cleaned.geometry.notna() & ~cleaned.geometry.is_empty].copy()
+    if cleaned.empty:
+        raise ValueError(f"{label} has no usable geometries after repair.")
+
+    return cleaned
+
+
 def load_va_boundary(path: str) -> gpd.GeoDataFrame:
     """Load the Virginia boundary file as a GeoDataFrame."""
     gdf = gpd.read_file(path)
     if gdf.empty:
         raise ValueError(f"Boundary file '{path}' is empty.")
-    return gdf
+    return _sanitize_geometries(gdf, label=f"Boundary file '{path}'")
 
 
 def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
@@ -26,7 +65,8 @@ def load_vector_layer(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
     if gdf.empty:
         layer_msg = f" (layer='{layer}')" if layer else ""
         raise ValueError(f"Vector file '{path}'{layer_msg} is empty.")
-    return gdf
+    layer_msg = f" (layer='{layer}')" if layer else ""
+    return _sanitize_geometries(gdf, label=f"Vector file '{path}'{layer_msg}")
 
 
 def load_vector_collection(path: str, layer: str | None = None) -> gpd.GeoDataFrame:
