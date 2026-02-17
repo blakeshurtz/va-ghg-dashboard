@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import warnings
 
 try:
     from shapely import make_valid as _make_valid
@@ -27,9 +28,17 @@ def repair_geometry(geom: Any):
     candidate = geom
 
     # Try make_valid first when available (more robust than buffer(0) for bad rings).
+    # Some malformed geometries emit RuntimeWarning("invalid value encountered")
+    # from GEOS internals; treat those as recoverable and continue to fallback.
     if _make_valid is not None:
         try:
-            candidate = _make_valid(candidate)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message="invalid value encountered in make_valid",
+                    category=RuntimeWarning,
+                )
+                candidate = _make_valid(candidate)
         except Exception:
             pass
 
@@ -44,6 +53,13 @@ def repair_geometry(geom: Any):
         except Exception:
             return None
 
+    # Buffer(0) can still yield invalid outputs for severely malformed inputs.
+    try:
+        if not bool(candidate.is_valid):
+            return None
+    except Exception:
+        return None
+
     try:
         if candidate is None or candidate.is_empty:
             return None
@@ -51,4 +67,3 @@ def repair_geometry(geom: Any):
         return None
 
     return candidate
-
