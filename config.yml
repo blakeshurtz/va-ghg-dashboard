@@ -19,7 +19,7 @@ paths:
   va_boundary: data/boundaries/va_boundary_20m.geojson
   va_boundary_path: data/boundaries/va_boundary_20m.geojson
   icons_source_dir: icons/original
-  terrain_raw_dir: layers/terrain/raw
+  terrain_raw_dir: 'D:\tiffs'
   terrain_processed_dir: layers/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
