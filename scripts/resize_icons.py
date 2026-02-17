@@ -63,7 +63,7 @@ def main() -> int:
     parser.add_argument(
         "--max-size-px",
         type=int,
-        default=28,
+        default=50,
         help="Maximum width/height (pixels) for resized icons",
     )
     args = parser.parse_args()
