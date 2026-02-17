@@ -11,7 +11,8 @@ from matplotlib.patches import PathPatch
 import numpy as np
 import rasterio
 from shapely.geometry import MultiPolygon, Polygon
-from rasterio.warp import transform_bounds
+from rasterio.transform import array_bounds
+from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 
 from scripts.io import (
     emissions_to_gdf,
@@ -25,6 +26,10 @@ from scripts.map_base import draw_boundary, draw_pipelines, draw_reference_layer
 from scripts.points import draw_points_with_facility_icons
 
 TARGET_CRS = "EPSG:3857"
+
+
+def _target_crs(cfg: dict[str, Any]) -> str:
+    return str(cfg.get("crs", {}).get("map_crs", TARGET_CRS))
 
 
 def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
@@ -42,7 +47,7 @@ def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
 
 def _load_boundary_3857(cfg: dict[str, Any]):
     boundary = load_va_boundary(cfg["paths"]["va_boundary"])
-    return ensure_crs(boundary, TARGET_CRS)
+    return ensure_crs(boundary, _target_crs(cfg))
 
 
 def _load_pipelines_3857(cfg: dict[str, Any]):
@@ -52,7 +57,7 @@ def _load_pipelines_3857(cfg: dict[str, Any]):
 
     layer = cfg["paths"].get("pipelines_layer")
     pipelines = load_vector_collection(pipelines_path, layer=layer)
-    return ensure_crs(pipelines, TARGET_CRS)
+    return ensure_crs(pipelines, _target_crs(cfg))
 
 
 def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -69,7 +74,7 @@ def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
         if not source_path:
             continue
         layer = load_vector_collection(source_path)
-        layers[layer_name] = ensure_crs(layer, TARGET_CRS)
+        layers[layer_name] = ensure_crs(layer, _target_crs(cfg))
 
     return layers
 
@@ -151,10 +156,44 @@ def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
         return
 
     terrain_img = plt.imread(tint_path)
+    target_crs = _target_crs(cfg)
     with rasterio.open(dem_path) as dem:
         if dem.crs is None:
             return
-        minx, miny, maxx, maxy = transform_bounds(dem.crs, TARGET_CRS, *dem.bounds, densify_pts=21)
+
+        if dem.crs == target_crs:
+            minx, miny, maxx, maxy = transform_bounds(dem.crs, target_crs, *dem.bounds, densify_pts=21)
+        else:
+            dst_transform, dst_width, dst_height = calculate_default_transform(
+                dem.crs,
+                target_crs,
+                dem.width,
+                dem.height,
+                *dem.bounds,
+            )
+
+            if terrain_img.ndim == 2:
+                src_bands = terrain_img[np.newaxis, ...]
+            else:
+                src_bands = np.moveaxis(terrain_img, -1, 0)
+
+            reprojected = np.zeros((src_bands.shape[0], dst_height, dst_width), dtype=np.float32)
+            for band_idx in range(src_bands.shape[0]):
+                is_alpha_band = src_bands.shape[0] == 4 and band_idx == 3
+                reproject(
+                    source=src_bands[band_idx],
+                    destination=reprojected[band_idx],
+                    src_transform=dem.transform,
+                    src_crs=dem.crs,
+                    dst_transform=dst_transform,
+                    dst_crs=target_crs,
+                    src_nodata=0.0,
+                    dst_nodata=0.0,
+                    resampling=(rasterio.enums.Resampling.nearest if is_alpha_band else rasterio.enums.Resampling.bilinear),
+                )
+
+            terrain_img = reprojected[0] if reprojected.shape[0] == 1 else np.moveaxis(reprojected, 0, -1)
+            minx, miny, maxx, maxy = array_bounds(dst_height, dst_width, dst_transform)
 
     image_artist = map_ax.imshow(
         terrain_img,
@@ -207,7 +246,7 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     lat_col = cfg["paths"].get("emissions_lat_col", "latitude")
     lon_col = cfg["paths"].get("emissions_lon_col", "longitude")
     points = emissions_to_gdf(points_df, lat_col=lat_col, lon_col=lon_col)
-    points = ensure_crs(points, TARGET_CRS)
+    points = ensure_crs(points, _target_crs(cfg))
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
