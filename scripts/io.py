@@ -213,9 +213,11 @@ def emissions_to_gdf(
 
 def ensure_crs(gdf: gpd.GeoDataFrame, target_crs: str) -> gpd.GeoDataFrame:
     """Return a GeoDataFrame in the target CRS."""
+    from pyproj import CRS
+
     if gdf.crs is None:
         raise ValueError("GeoDataFrame has no CRS; cannot reproject.")
-    if str(gdf.crs) == target_crs:
+    if gdf.crs.equals(CRS(target_crs)):
         return gdf
     try:
         return gdf.to_crs(target_crs)
