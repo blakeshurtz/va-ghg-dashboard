@@ -48,9 +48,30 @@ def _safe_clip(
     *,
     label: str = "layer",
 ) -> gpd.GeoDataFrame:
+    # Ensure CRS alignment — mismatched CRS silently produces empty clips.
+    if layer_gdf.crs is not None and boundary_gdf.crs is not None:
+        if not layer_gdf.crs.equals(boundary_gdf.crs):
+            warnings.warn(
+                f"{label}: CRS mismatch — layer={layer_gdf.crs}, "
+                f"boundary={boundary_gdf.crs}; reprojecting layer to match boundary",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            layer_gdf = layer_gdf.to_crs(boundary_gdf.crs)
+
     try:
         result = gpd.clip(layer_gdf, boundary_gdf)
-        return _repair_geometry_frame(result)
+        if result.empty:
+            warnings.warn(
+                f"{label}: gpd.clip returned 0 features "
+                f"(layer: {len(layer_gdf)} features, CRS={layer_gdf.crs}, "
+                f"bounds={tuple(round(v, 1) for v in layer_gdf.total_bounds)}; "
+                f"boundary: CRS={boundary_gdf.crs}, "
+                f"bounds={tuple(round(v, 1) for v in boundary_gdf.total_bounds)})",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return result
     except Exception as first_exc:
         warnings.warn(
             f"{label}: primary clip failed ({first_exc!r}), trying repaired inputs",
@@ -68,7 +89,7 @@ def _safe_clip(
             return layer_fixed.iloc[0:0]
         try:
             result = gpd.clip(layer_fixed, boundary_fixed)
-            return _repair_geometry_frame(result)
+            return result
         except Exception as second_exc:
             warnings.warn(
                 f"{label}: repaired clip also failed ({second_exc!r}), "
@@ -77,8 +98,7 @@ def _safe_clip(
                 stacklevel=2,
             )
             minx, miny, maxx, maxy = boundary_fixed.total_bounds
-            clipped_bbox = layer_fixed.cx[minx:maxx, miny:maxy]
-            return _repair_geometry_frame(clipped_bbox)
+            return layer_fixed.cx[minx:maxx, miny:maxy]
 
 
 def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -> None:
@@ -86,12 +106,7 @@ def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -
     style = cfg["style"]
     fill_color = style.get("boundary_fill")
 
-    safe_boundary = _repair_geometry_frame(boundary_gdf)
-    if safe_boundary.empty:
-        warnings.warn("Boundary has no plottable geometries", RuntimeWarning, stacklevel=2)
-        return
-
-    safe_boundary.plot(
+    boundary_gdf.plot(
         ax=map_ax,
         facecolor=fill_color if fill_color else "none",
         edgecolor=style.get("boundary_edgecolor", "#9fb3c8"),
