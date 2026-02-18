@@ -6,6 +6,7 @@ import warnings
 from typing import Any
 
 import geopandas as gpd
+import numpy as np
 
 from scripts.geometry_utils import repair_geometry
 
@@ -42,12 +43,42 @@ def _keep_plottable_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoD
     return gdf[mask].copy()
 
 
+def _has_finite_bounds(gdf: gpd.GeoDataFrame) -> bool:
+    if gdf.empty:
+        return False
+    bounds = gdf.total_bounds
+    return bool(np.isfinite(bounds).all())
+
+
 def _safe_clip(
     layer_gdf: gpd.GeoDataFrame,
     boundary_gdf: gpd.GeoDataFrame,
     *,
     label: str = "layer",
 ) -> gpd.GeoDataFrame:
+    if layer_gdf.empty:
+        warnings.warn(f"{label}: layer is empty before clip", RuntimeWarning, stacklevel=2)
+        return layer_gdf
+    if boundary_gdf.empty:
+        warnings.warn(f"{label}: boundary is empty before clip", RuntimeWarning, stacklevel=2)
+        return layer_gdf.iloc[0:0]
+
+    if not _has_finite_bounds(layer_gdf):
+        warnings.warn(
+            f"{label}: non-finite layer bounds detected ({tuple(layer_gdf.total_bounds)}) — skipping clip",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return layer_gdf.iloc[0:0]
+
+    if not _has_finite_bounds(boundary_gdf):
+        warnings.warn(
+            f"{label}: non-finite boundary bounds detected ({tuple(boundary_gdf.total_bounds)}) — skipping clip",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return layer_gdf.iloc[0:0]
+
     # Ensure CRS alignment — mismatched CRS silently produces empty clips.
     if layer_gdf.crs is not None and boundary_gdf.crs is not None:
         if not layer_gdf.crs.equals(boundary_gdf.crs):
@@ -58,6 +89,14 @@ def _safe_clip(
                 stacklevel=2,
             )
             layer_gdf = layer_gdf.to_crs(boundary_gdf.crs)
+
+    if not _has_finite_bounds(layer_gdf):
+        warnings.warn(
+            f"{label}: non-finite bounds after reprojection ({tuple(layer_gdf.total_bounds)}) — skipping clip",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return layer_gdf.iloc[0:0]
 
     try:
         result = gpd.clip(layer_gdf, boundary_gdf)

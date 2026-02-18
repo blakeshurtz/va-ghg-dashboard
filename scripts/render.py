@@ -56,17 +56,79 @@ def _load_boundary_3857(cfg: dict[str, Any]):
     return projected
 
 
-def _load_pipelines_3857(cfg: dict[str, Any]):
+def _print_layer_debug(label: str, gdf, *, stage: str) -> None:
+    """Emit layer diagnostics to trace CRS/bounds issues during rendering."""
+    bounds = tuple(float(v) for v in gdf.total_bounds) if len(gdf) else (float("nan"),) * 4
+    try:
+        invalid_count = int((~gdf.is_valid).sum()) if len(gdf) else 0
+    except Exception:
+        invalid_count = -1
+
+    print(
+        f"[DEBUG] {label} ({stage}): "
+        f"CRS={gdf.crs}, "
+        f"bounds={bounds}, "
+        f"features={len(gdf)}, "
+        f"invalid_geometries={invalid_count}"
+    )
+
+
+def load_and_prepare_layer(
+    path: str,
+    boundary_gdf,
+    *,
+    label: str,
+    layer: str | None = None,
+):
+    """Load, validate, and align a layer CRS to the boundary CRS."""
+    gdf = load_vector_collection(path, layer=layer)
+    _print_layer_debug(label, gdf, stage="loaded")
+
+    gdf = gdf[gdf.geometry.notna()].copy()
+    if gdf.empty:
+        warnings.warn(f"{label}: no non-null geometries after loading", RuntimeWarning, stacklevel=2)
+        return gdf
+
+    # Repair malformed geometries before reprojection to avoid infinite bounds.
+    gdf["geometry"] = [repair_geometry(geom) for geom in gdf.geometry]
+    gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
+    if gdf.empty:
+        warnings.warn(f"{label}: no usable geometries after repair", RuntimeWarning, stacklevel=2)
+        return gdf
+
+    try:
+        gdf = gdf[gdf.is_valid].copy()
+    except Exception:
+        pass
+    if gdf.empty:
+        warnings.warn(f"{label}: all geometries are invalid after repair", RuntimeWarning, stacklevel=2)
+        return gdf
+
+    if gdf.crs is None:
+        warnings.warn(
+            f"{label}: missing CRS metadata; assuming EPSG:4326 before reprojection",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        gdf = gdf.set_crs("EPSG:4326")
+
+    if boundary_gdf.crs is not None and not gdf.crs.equals(boundary_gdf.crs):
+        gdf = gdf.to_crs(boundary_gdf.crs)
+
+    _print_layer_debug(label, gdf, stage="prepared")
+    return gdf
+
+
+def _load_pipelines_3857(cfg: dict[str, Any], boundary):
     pipelines_path = cfg["paths"].get("pipelines")
     if not pipelines_path:
         return None
 
     layer = cfg["paths"].get("pipelines_layer")
-    pipelines = load_vector_collection(pipelines_path, layer=layer)
-    return ensure_crs(pipelines, _target_crs(cfg))
+    return load_and_prepare_layer(pipelines_path, boundary, label="pipelines", layer=layer)
 
 
-def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
+def _load_reference_layers_3857(cfg: dict[str, Any], boundary) -> dict[str, Any]:
     path_keys = {
         "railroads": "railroads",
         "primary_roads": "primary_roads",
@@ -79,8 +141,7 @@ def _load_reference_layers_3857(cfg: dict[str, Any]) -> dict[str, Any]:
         source_path = cfg["paths"].get(path_key)
         if not source_path:
             continue
-        layer = load_vector_collection(source_path)
-        layers[layer_name] = ensure_crs(layer, _target_crs(cfg))
+        layers[layer_name] = load_and_prepare_layer(source_path, boundary, label=layer_name)
 
     return layers
 
@@ -271,8 +332,8 @@ def render_layout_base(cfg: dict[str, Any]) -> Path:
     """Render layout base map with boundary and blank panel."""
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
-    pipelines = _load_pipelines_3857(cfg)
-    reference_layers = _load_reference_layers_3857(cfg)
+    pipelines = _load_pipelines_3857(cfg, boundary)
+    reference_layers = _load_reference_layers_3857(cfg, boundary)
 
     fig, map_ax, panel_ax = create_canvas(cfg)
     apply_dark_theme(fig, map_ax, panel_ax, cfg)
@@ -295,8 +356,8 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
 
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
-    pipelines = _load_pipelines_3857(cfg)
-    reference_layers = _load_reference_layers_3857(cfg)
+    pipelines = _load_pipelines_3857(cfg, boundary)
+    reference_layers = _load_reference_layers_3857(cfg, boundary)
 
     points_df = load_emissions_csv(emissions_csv)
     if "reporting_year" in points_df.columns:
