@@ -69,11 +69,14 @@ def draw_pipelines(
     if clipped.empty:
         return
 
+    # On high-resolution exports, sub-1pt strokes can become nearly imperceptible.
+    linewidth = max(float(style.get("pipelines_linewidth", 0.4)), 1.0)
+
     try:
         clipped.plot(
             ax=map_ax,
             color=style.get("pipelines_color", "#4ba3c7"),
-            linewidth=float(style.get("pipelines_linewidth", 0.4)),
+            linewidth=linewidth,
             alpha=float(style.get("pipelines_alpha", 0.5)),
             zorder=float(style.get("pipelines_zorder", 2)),
         )
@@ -97,6 +100,9 @@ def draw_reference_layer(
     if clipped.empty:
         return
 
+    # Keep line references readable at dashboard export size.
+    visible_linewidth = max(float(linewidth), 0.9)
+
     try:
         geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
         if geom_types <= {"Point", "MultiPoint"}:
@@ -112,7 +118,7 @@ def draw_reference_layer(
         clipped.plot(
             ax=map_ax,
             color=color,
-            linewidth=linewidth,
+            linewidth=visible_linewidth,
             alpha=alpha,
             zorder=zorder,
         )
