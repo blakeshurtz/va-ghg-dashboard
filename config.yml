@@ -97,15 +97,15 @@ style:
 
   # Pipelines (teal)
   pipelines_color: "#9D00FF"
-  pipelines_linewidth: 0.55
-  pipelines_alpha: 0.55
-  pipelines_zorder: 2.0
+  pipelines_linewidth: 1.2
+  pipelines_alpha: 0.75
+  pipelines_zorder: 2.5
 
   # Railroads (cool light gray, subtle)
   railroads_color: "#d7dde6"
-  railroads_linewidth: 0.45
-  railroads_alpha: 0.45
-  railroads_zorder: 2.1
+  railroads_linewidth: 0.9
+  railroads_alpha: 0.60
+  railroads_zorder: 2.6
 
   # Roads — Google-ish hierarchy via thickness + opacity
   highways_color: "#fff2b3"           # brightest roads
@@ -114,9 +114,9 @@ style:
   highways_zorder: 2.4
 
   primary_roads_color: "#ffd27a"
-  primary_roads_linewidth: 0.85
-  primary_roads_alpha: 0.50
-  primary_roads_zorder: 2.3
+  primary_roads_linewidth: 1.15
+  primary_roads_alpha: 0.70
+  primary_roads_zorder: 2.7
 
   secondary_roads_color: "#f3e6c8"
   secondary_roads_linewidth: 0.55
