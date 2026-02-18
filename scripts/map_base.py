@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import geopandas as gpd
@@ -18,19 +19,63 @@ def _repair_geometry_frame(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return repaired[repaired.geometry.notna() & ~repaired.geometry.is_empty].copy()
 
 
-def _safe_clip(layer_gdf: gpd.GeoDataFrame, boundary_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def _keep_plottable_geometries(gdf: gpd.GeoDataFrame, *, label: str) -> gpd.GeoDataFrame:
+    """Filter to geometry types that geopandas can render without error.
+
+    Clipping can produce GeometryCollections or LinearRings that cause
+    geopandas.plot() to raise.  This helper keeps only Point, MultiPoint,
+    LineString, and MultiLineString features, which are the types expected
+    for overlay layers.
+    """
+    plottable_types = {"Point", "MultiPoint", "LineString", "MultiLineString",
+                       "Polygon", "MultiPolygon"}
+    mask = gdf.geometry.geom_type.isin(plottable_types)
+    dropped = int((~mask).sum())
+    if dropped:
+        bad_types = gdf.loc[~mask, "geometry"].geom_type.value_counts().to_dict()
+        warnings.warn(
+            f"{label}: dropped {dropped} non-plottable feature(s) "
+            f"with types {bad_types}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    return gdf[mask].copy()
+
+
+def _safe_clip(
+    layer_gdf: gpd.GeoDataFrame,
+    boundary_gdf: gpd.GeoDataFrame,
+    *,
+    label: str = "layer",
+) -> gpd.GeoDataFrame:
     try:
         result = gpd.clip(layer_gdf, boundary_gdf)
         return _repair_geometry_frame(result)
-    except Exception:
+    except Exception as first_exc:
+        warnings.warn(
+            f"{label}: primary clip failed ({first_exc!r}), trying repaired inputs",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         layer_fixed = _repair_geometry_frame(layer_gdf)
         boundary_fixed = _repair_geometry_frame(boundary_gdf)
         if layer_fixed.empty or boundary_fixed.empty:
+            warnings.warn(
+                f"{label}: no usable geometries after repair — layer will be empty",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             return layer_fixed.iloc[0:0]
         try:
             result = gpd.clip(layer_fixed, boundary_fixed)
             return _repair_geometry_frame(result)
-        except Exception:
+        except Exception as second_exc:
+            warnings.warn(
+                f"{label}: repaired clip also failed ({second_exc!r}), "
+                "falling back to bounding-box filter",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             minx, miny, maxx, maxy = boundary_fixed.total_bounds
             clipped_bbox = layer_fixed.cx[minx:maxx, miny:maxy]
             return _repair_geometry_frame(clipped_bbox)
@@ -43,18 +88,16 @@ def draw_boundary(map_ax, boundary_gdf: gpd.GeoDataFrame, cfg: dict[str, Any]) -
 
     safe_boundary = _repair_geometry_frame(boundary_gdf)
     if safe_boundary.empty:
+        warnings.warn("Boundary has no plottable geometries", RuntimeWarning, stacklevel=2)
         return
 
-    try:
-        safe_boundary.plot(
-            ax=map_ax,
-            facecolor=fill_color if fill_color else "none",
-            edgecolor=style.get("boundary_edgecolor", "#9fb3c8"),
-            linewidth=float(style["boundary_linewidth"]),
-            alpha=float(style["boundary_alpha"]),
-        )
-    except Exception:
-        pass
+    safe_boundary.plot(
+        ax=map_ax,
+        facecolor=fill_color if fill_color else "none",
+        edgecolor=style.get("boundary_edgecolor", "#9fb3c8"),
+        linewidth=float(style["boundary_linewidth"]),
+        alpha=float(style["boundary_alpha"]),
+    )
 
 
 def draw_pipelines(
@@ -65,23 +108,26 @@ def draw_pipelines(
 ) -> None:
     """Draw natural gas pipelines clipped to the boundary extent."""
     style = cfg["style"]
-    clipped = _safe_clip(pipelines_gdf, boundary_gdf)
+    clipped = _safe_clip(pipelines_gdf, boundary_gdf, label="pipelines")
     if clipped.empty:
+        warnings.warn("Pipelines: empty after clip — nothing to draw", RuntimeWarning, stacklevel=2)
+        return
+
+    clipped = _keep_plottable_geometries(clipped, label="pipelines")
+    if clipped.empty:
+        warnings.warn("Pipelines: no plottable geometries after filtering", RuntimeWarning, stacklevel=2)
         return
 
     # On high-resolution exports, sub-1pt strokes can become nearly imperceptible.
     linewidth = max(float(style.get("pipelines_linewidth", 0.4)), 1.0)
 
-    try:
-        clipped.plot(
-            ax=map_ax,
-            color=style.get("pipelines_color", "#4ba3c7"),
-            linewidth=linewidth,
-            alpha=float(style.get("pipelines_alpha", 0.5)),
-            zorder=float(style.get("pipelines_zorder", 2)),
-        )
-    except Exception:
-        pass
+    clipped.plot(
+        ax=map_ax,
+        color=style.get("pipelines_color", "#4ba3c7"),
+        linewidth=linewidth,
+        alpha=float(style.get("pipelines_alpha", 0.5)),
+        zorder=float(style.get("pipelines_zorder", 2)),
+    )
 
 
 def draw_reference_layer(
@@ -93,37 +139,41 @@ def draw_reference_layer(
     linewidth: float,
     alpha: float,
     zorder: float,
+    label: str = "reference",
     marker_size: float = 6.0,
 ) -> None:
     """Draw a reference vector layer clipped to the boundary extent."""
-    clipped = _safe_clip(layer_gdf, boundary_gdf)
+    clipped = _safe_clip(layer_gdf, boundary_gdf, label=label)
     if clipped.empty:
+        warnings.warn(f"{label}: empty after clip — nothing to draw", RuntimeWarning, stacklevel=2)
+        return
+
+    clipped = _keep_plottable_geometries(clipped, label=label)
+    if clipped.empty:
+        warnings.warn(f"{label}: no plottable geometries after filtering", RuntimeWarning, stacklevel=2)
         return
 
     # Keep line references readable at dashboard export size.
     visible_linewidth = max(float(linewidth), 0.9)
 
-    try:
-        geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
-        if geom_types <= {"Point", "MultiPoint"}:
-            clipped.plot(
-                ax=map_ax,
-                color=color,
-                alpha=alpha,
-                zorder=zorder,
-                markersize=marker_size,
-            )
-            return
-
+    geom_types = {str(geom_type) for geom_type in clipped.geometry.geom_type.unique()}
+    if geom_types <= {"Point", "MultiPoint"}:
         clipped.plot(
             ax=map_ax,
             color=color,
-            linewidth=visible_linewidth,
             alpha=alpha,
             zorder=zorder,
+            markersize=marker_size,
         )
-    except Exception:
-        pass
+        return
+
+    clipped.plot(
+        ax=map_ax,
+        color=color,
+        linewidth=visible_linewidth,
+        alpha=alpha,
+        zorder=zorder,
+    )
 
 
 def set_extent_to_boundary(

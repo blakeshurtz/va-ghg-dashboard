@@ -106,6 +106,7 @@ def _draw_reference_layers(map_ax, boundary, cfg: dict[str, Any], layers: dict[s
             linewidth=float(style.get(f"{layer_name}_linewidth", 0.35)),
             alpha=float(style.get(f"{layer_name}_alpha", 0.35)),
             zorder=float(style.get(f"{layer_name}_zorder", 1.5)),
+            label=layer_name,
             marker_size=float(style.get(f"{layer_name}_marker_size", 6.0)),
         )
 
