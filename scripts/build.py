@@ -9,7 +9,7 @@ from scripts.render import render_layout_base, render_layout_points
 from scripts.terrain import run_terrain_pipeline
 
 
-TARGET_CHOICES = ("base", "points", "terrain", "all")
+TARGET_CHOICES = ("base", "points", "terrain", "layers", "all")
 
 
 def main() -> int:
@@ -19,7 +19,7 @@ def main() -> int:
         "--target",
         default="all",
         choices=TARGET_CHOICES,
-        help="Render target: base, points, terrain, or all",
+        help="Render target: base, points, terrain, layers (base+points, no terrain), or all",
     )
     args = parser.parse_args()
 
@@ -38,11 +38,11 @@ def main() -> int:
                 print(f"[OK] Terrain hillshade: {terrain_result.hillshade_path}")
                 print(f"[OK] Terrain tint PNG: {terrain_result.tint_png_path}")
 
-        if args.target in ("base", "all"):
+        if args.target in ("base", "layers", "all"):
             base_path = render_layout_base(cfg)
             print(f"[OK] Rendered base layout PNG: {base_path}")
 
-        if args.target in ("points", "all"):
+        if args.target in ("points", "layers", "all"):
             points_path = render_layout_points(cfg)
             print(f"[OK] Rendered points layout PNG: {points_path}")
 

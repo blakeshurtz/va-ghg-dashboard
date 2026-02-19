@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 import warnings
 
+import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
 from matplotlib.patches import PathPatch
@@ -89,8 +90,41 @@ def load_and_prepare_layer(
         warnings.warn(f"{label}: no non-null geometries after loading", RuntimeWarning, stacklevel=2)
         return gdf
 
+    # Spatial pre-filter: keep only features that fall within the boundary's
+    # bounding box (in the layer's native CRS) so far-flung geometries
+    # (e.g. US territories crossing the antimeridian) are dropped before
+    # repair and reprojection, where they would otherwise cause GEOS errors.
+    if boundary_gdf.crs is not None and gdf.crs is not None:
+        try:
+            boundary_native = boundary_gdf.to_crs(gdf.crs)
+            bminx, bminy, bmaxx, bmaxy = boundary_native.total_bounds
+            pad = max(bmaxx - bminx, bmaxy - bminy) * 0.1
+            pre_count = len(gdf)
+            gdf = gdf.cx[bminx - pad : bmaxx + pad, bminy - pad : bmaxy + pad]
+            if len(gdf) < pre_count:
+                print(
+                    f"[INFO] {label}: spatial pre-filter kept {len(gdf)}/{pre_count} "
+                    f"features near boundary extent"
+                )
+        except Exception as exc:
+            warnings.warn(
+                f"{label}: spatial pre-filter failed ({exc!r}), proceeding without it",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    if gdf.empty:
+        warnings.warn(f"{label}: no features within boundary extent", RuntimeWarning, stacklevel=2)
+        return gdf
+
     # Repair malformed geometries before reprojection to avoid infinite bounds.
-    gdf["geometry"] = [repair_geometry(geom) for geom in gdf.geometry]
+    repaired = []
+    for geom in gdf.geometry:
+        try:
+            repaired.append(repair_geometry(geom))
+        except Exception:
+            repaired.append(None)
+    gdf["geometry"] = repaired
     gdf = gdf[gdf.geometry.notna() & ~gdf.geometry.is_empty].copy()
     if gdf.empty:
         warnings.warn(f"{label}: no usable geometries after repair", RuntimeWarning, stacklevel=2)
@@ -113,7 +147,34 @@ def load_and_prepare_layer(
         gdf = gdf.set_crs("EPSG:4326")
 
     if boundary_gdf.crs is not None and not gdf.crs.equals(boundary_gdf.crs):
-        gdf = gdf.to_crs(boundary_gdf.crs)
+        try:
+            gdf = gdf.to_crs(boundary_gdf.crs)
+        except Exception as exc:
+            warnings.warn(
+                f"{label}: bulk reprojection failed ({exc!r}), "
+                "reprojecting features individually",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            # Fall back to per-feature reprojection so one bad geometry
+            # doesn't take out the whole layer.
+            target_crs = boundary_gdf.crs
+            good_rows = []
+            for idx, row in gdf.iterrows():
+                try:
+                    single = gpd.GeoDataFrame([row], crs=gdf.crs).to_crs(target_crs)
+                    good_rows.append(single.iloc[0])
+                except Exception:
+                    continue
+            if good_rows:
+                gdf = gpd.GeoDataFrame(good_rows, crs=target_crs)
+            else:
+                warnings.warn(
+                    f"{label}: all features failed reprojection",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                return gdf.iloc[0:0]
 
     _print_layer_debug(label, gdf, stage="prepared")
     return gdf
