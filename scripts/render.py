@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import io
+import math
+import urllib.request
 from pathlib import Path
 from typing import Any
 
-import contextily as ctx
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
 from matplotlib.patches import PathPatch
 import numpy as np
+from PIL import Image
 from shapely.geometry import MultiPolygon, Polygon
 
 from scripts.io import (
@@ -24,6 +27,7 @@ from scripts.map_base import draw_boundary, draw_pipelines, draw_reference_layer
 from scripts.points import draw_points_with_facility_icons
 
 TARGET_CRS = "EPSG:3857"
+_WEB_MERCATOR_ORIGIN = 20037508.342789244
 
 
 def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
@@ -137,49 +141,215 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
     return PathPatch(clip_path, transform=None)
 
 
-def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
-    """Draw terrain hillshade fetched via contextily tiles, clipped to the VA boundary.
+def _lon_lat_to_tile(lon: float, lat: float, zoom: int) -> tuple[int, int]:
+    """Convert longitude/latitude to slippy-map tile coordinates."""
+    n = 2 ** zoom
+    x = int((lon + 180.0) / 360.0 * n)
+    lat_rad = math.radians(lat)
+    y = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+    return x, y
 
-    Tiles are natively in EPSG:3857 (matching the display CRS), which eliminates
-    the CRS mismatch that caused terrain clipping artefacts with the old DEM-based
-    pipeline.  No local DEM data is required.
+
+def _tile_bounds_3857(tx: int, ty: int, zoom: int) -> tuple[float, float, float, float]:
+    """Return (left, bottom, right, top) in EPSG:3857 for a tile."""
+    n = 2 ** zoom
+    tile_size = 2 * _WEB_MERCATOR_ORIGIN / n
+    left = -_WEB_MERCATOR_ORIGIN + tx * tile_size
+    top = _WEB_MERCATOR_ORIGIN - ty * tile_size
+    return left, top - tile_size, left + tile_size, top
+
+
+def _fetch_terrarium_elevation(
+    minx: float, miny: float, maxx: float, maxy: float, zoom: int,
+) -> tuple[np.ndarray, tuple[float, float, float, float]] | None:
+    """Download Terrarium-format elevation tiles from AWS and return an elevation
+    grid (metres) plus its EPSG:3857 extent.
+
+    Terrarium tiles encode elevation as:
+        elevation = (red * 256 + green + blue / 256) - 32768
+    They are served in Web Mercator (EPSG:3857), so no reprojection is needed
+    for a 3857 display axis.
+    """
+    # Convert 3857 bounds to lon/lat for tile indexing
+    def _m_to_lon(mx: float) -> float:
+        return mx / _WEB_MERCATOR_ORIGIN * 180.0
+
+    def _m_to_lat(my: float) -> float:
+        return math.degrees(math.atan(math.sinh(math.pi * my / _WEB_MERCATOR_ORIGIN)))
+
+    lon_min, lon_max = _m_to_lon(minx), _m_to_lon(maxx)
+    lat_min, lat_max = _m_to_lat(miny), _m_to_lat(maxy)
+
+    x_min, y_nw = _lon_lat_to_tile(lon_min, lat_max, zoom)
+    x_max, y_se = _lon_lat_to_tile(lon_max, lat_min, zoom)
+    y_min, y_max = min(y_nw, y_se), max(y_nw, y_se)
+
+    grid_w = x_max - x_min + 1
+    grid_h = y_max - y_min + 1
+    px = 256
+    total_w, total_h = grid_w * px, grid_h * px
+    elevation = np.full((total_h, total_w), np.nan, dtype=np.float32)
+
+    base_url = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium"
+    downloaded = 0
+    for ty in range(y_min, y_max + 1):
+        for tx in range(x_min, x_max + 1):
+            url = f"{base_url}/{zoom}/{tx}/{ty}.png"
+            try:
+                with urllib.request.urlopen(url, timeout=15) as resp:
+                    data = resp.read()
+                img = np.array(Image.open(io.BytesIO(data)))
+                r = img[:, :, 0].astype(np.float32)
+                g = img[:, :, 1].astype(np.float32)
+                b = img[:, :, 2].astype(np.float32)
+                elev = (r * 256.0 + g + b / 256.0) - 32768.0
+                row = (ty - y_min) * px
+                col = (tx - x_min) * px
+                elevation[row:row + elev.shape[0], col:col + elev.shape[1]] = elev
+                downloaded += 1
+            except Exception:
+                pass
+
+    if downloaded == 0:
+        return None
+
+    print(f"[INFO] Terrain: fetched {downloaded}/{grid_w * grid_h} tiles at zoom {zoom}")
+
+    # Compute the 3857 extent of the full tile grid
+    left = _tile_bounds_3857(x_min, y_min, zoom)[0]
+    right = _tile_bounds_3857(x_max, y_min, zoom)[2]
+    top = _tile_bounds_3857(x_min, y_min, zoom)[3]
+    bottom = _tile_bounds_3857(x_min, y_max, zoom)[1]
+
+    return elevation, (left, bottom, right, top)
+
+
+def _compute_multidirectional_hillshade(
+    elevation: np.ndarray,
+    cell_size_x: float,
+    cell_size_y: float,
+    vertical_exag: float = 1.5,
+) -> np.ndarray:
+    """Compute a multi-directional hillshade (0-1 float) from an elevation grid.
+
+    Uses four light azimuths (315, 270, 225, 360) to avoid harsh single-source
+    shadow artefacts.  The altitude is fixed at 45 degrees.
+    """
+    altitude = math.radians(45.0)
+    azimuths_deg = [315.0, 270.0, 225.0, 360.0]
+    weights = [0.40, 0.25, 0.20, 0.15]
+
+    elev = np.where(np.isfinite(elevation), elevation * vertical_exag, 0.0)
+    dy, dx = np.gradient(elev, cell_size_y, cell_size_x)
+    slope = np.sqrt(dx * dx + dy * dy)
+    slope_angle = np.arctan(slope)
+    aspect = np.arctan2(-dx, dy)
+
+    combined = np.zeros_like(elev)
+    for az_deg, w in zip(azimuths_deg, weights):
+        az = math.radians(az_deg)
+        shade = (
+            np.sin(altitude) * np.cos(slope_angle)
+            + np.cos(altitude) * np.sin(slope_angle) * np.cos(az - aspect)
+        )
+        combined += w * np.clip(shade, 0.0, 1.0)
+
+    return np.clip(combined, 0.0, 1.0)
+
+
+def _apply_hypsometric_tint(
+    elevation: np.ndarray,
+    hillshade: np.ndarray,
+    background_rgb: tuple[float, float, float],
+    tint_strength: float,
+) -> np.ndarray:
+    """Build an RGBA overlay that combines hillshade relief with subtle
+    elevation-dependent colouring against a dark background.
+
+    Low elevations (coastal plain) are tinted cool blue-gray, mid elevations
+    (piedmont) are muted green-gray, and high elevations (Appalachians) are
+    warm brown-gray.  The overall effect is controlled by *tint_strength*.
+    """
+    h, w = hillshade.shape
+    rgba = np.zeros((h, w, 4), dtype=np.float32)
+
+    valid = np.isfinite(elevation)
+    elev_safe = np.where(valid, elevation, 0.0)
+
+    # Normalise elevation to 0-1 range (clip sea-level to peak)
+    e_min, e_max = 0.0, max(float(np.nanmax(elev_safe[valid])), 1.0) if np.any(valid) else (0.0, 1.0)
+    e_norm = np.clip((elev_safe - e_min) / (e_max - e_min), 0.0, 1.0)
+
+    # Hypsometric colour ramp — bright enough to read against a dark background.
+    # Alpha controls how much shows, so the RGB values themselves should be
+    # moderately bright (0.5-0.85 range) so the terrain reads clearly.
+    stops = np.array([0.0, 0.15, 0.35, 0.65, 1.0])
+    colors = np.array([
+        [0.42, 0.52, 0.60],   # coastal:   cool steel-blue
+        [0.48, 0.58, 0.58],   # tidewater: blue-green gray
+        [0.55, 0.62, 0.50],   # piedmont:  muted sage
+        [0.68, 0.58, 0.45],   # foothills: warm brown
+        [0.82, 0.74, 0.62],   # peaks:     pale warm tan
+    ])
+
+    for ch in range(3):
+        rgba[:, :, ch] = np.interp(e_norm, stops, colors[:, ch])
+
+    # Modulate by hillshade: lit slopes bright, shadow slopes dark
+    shade_factor = 0.20 + hillshade * 0.80
+    rgba[:, :, :3] *= shade_factor[..., np.newaxis]
+
+    # Alpha: visible everywhere, stronger in mountainous areas.
+    # Even flat coastal areas get enough alpha to show a faint terrain presence.
+    relief = np.clip(e_norm * 1.3, 0.0, 1.0)
+    base_alpha = 0.35 + relief * 0.40
+    rgba[:, :, 3] = np.where(valid, base_alpha * tint_strength, 0.0)
+    rgba[:, :, 3] = np.clip(rgba[:, :, 3], 0.0, 1.0)
+
+    return rgba
+
+
+def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
+    """Draw terrain from real DEM data, clipped to the boundary.
+
+    Downloads Terrarium-format elevation tiles from AWS S3 (natively in
+    EPSG:3857, so no reprojection is needed), computes a multi-directional
+    hillshade for realistic lighting, and applies subtle hypsometric tinting
+    to distinguish mountains from coastal plain.
     """
     terrain_cfg = cfg.get("terrain", {})
     style = cfg.get("style", {})
     tint_strength = float(terrain_cfg.get("tint_strength", 0.25))
     terrain_zorder = float(style.get("terrain_zorder", 0.5))
-    tile_zoom = terrain_cfg.get("tile_zoom", "auto")
+    vertical_exag = float(terrain_cfg.get("vertical_exaggeration", 1.5))
+    tile_zoom = terrain_cfg.get("tile_zoom", 9)
+    if tile_zoom == "auto":
+        tile_zoom = 9
 
-    # Boundary is already in EPSG:3857
+    bg_hex = style.get("background", "#0b0f14")
+    bg_rgb = tuple(int(bg_hex.lstrip("#")[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
     minx, miny, maxx, maxy = boundary.total_bounds
+    pad = 0.05
+    dx, dy = maxx - minx, maxy - miny
+    fetch_bounds = (minx - dx * pad, miny - dy * pad, maxx + dx * pad, maxy + dy * pad)
 
-    try:
-        img, (w, s, e, n) = ctx.bounds2img(
-            minx, miny, maxx, maxy,
-            source=ctx.providers.Esri.WorldShadedRelief,
-            ll=False,
-            zoom=tile_zoom,
-        )
-    except Exception as exc:
-        print(f"[WARN] Could not fetch terrain tiles: {exc}")
+    result = _fetch_terrarium_elevation(*fetch_bounds, zoom=int(tile_zoom))
+    if result is None:
+        print("[WARN] Could not fetch terrain elevation tiles.")
         return
 
-    # Convert to grayscale luminance (0-1)
-    gray = np.mean(img[..., :3].astype(np.float32), axis=2) / 255.0
+    elevation, (left, bottom, right, top) = result
+    h, w = elevation.shape
 
-    # Build RGBA overlay matching the dark-theme tint formula:
-    #   gray channel = 150 + luminance * 50  (out of 255)
-    #   alpha = luminance * tint_strength
-    h, w_px = gray.shape
-    rgba = np.zeros((h, w_px, 4), dtype=np.float32)
-    base_gray = (150.0 + gray * 50.0) / 255.0
-    rgba[..., 0] = base_gray
-    rgba[..., 1] = base_gray
-    rgba[..., 2] = base_gray
-    rgba[..., 3] = gray * tint_strength
+    # Cell size in metres (EPSG:3857 units)
+    cell_x = (right - left) / w
+    cell_y = (top - bottom) / h
 
-    # extent for matplotlib imshow: (left, right, bottom, top)
-    extent = (w, e, s, n)
+    hillshade = _compute_multidirectional_hillshade(elevation, cell_x, cell_y, vertical_exag)
+    rgba = _apply_hypsometric_tint(elevation, hillshade, bg_rgb, tint_strength)
+
+    extent = (left, right, bottom, top)
 
     image_artist = map_ax.imshow(
         rgba,
