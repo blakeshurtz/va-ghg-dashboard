@@ -5,13 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import contextily as ctx
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
 from matplotlib.patches import PathPatch
 import numpy as np
-import rasterio
 from shapely.geometry import MultiPolygon, Polygon
-from rasterio.warp import transform_bounds
 
 from scripts.io import (
     emissions_to_gdf,
@@ -139,29 +138,55 @@ def _boundary_clip_patch(boundary) -> PathPatch | None:
 
 
 def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
-    """Draw terrain tint PNG aligned to the map CRS and clipped to the VA boundary."""
-    paths_cfg = cfg.get("paths", {})
-    terrain_processed_dir = Path(paths_cfg.get("terrain_processed_dir", "layers/terrain/processed"))
-    terrain_tint_name = paths_cfg.get("terrain_tint_png", "terrain_tint_va.png")
-    terrain_dem_name = paths_cfg.get("terrain_dem_tif", "dem_va_clipped.tif")
+    """Draw terrain hillshade fetched via contextily tiles, clipped to the VA boundary.
 
-    tint_path = terrain_processed_dir / terrain_tint_name
-    dem_path = terrain_processed_dir / terrain_dem_name
-    if not tint_path.exists() or not dem_path.exists():
+    Tiles are natively in EPSG:3857 (matching the display CRS), which eliminates
+    the CRS mismatch that caused terrain clipping artefacts with the old DEM-based
+    pipeline.  No local DEM data is required.
+    """
+    terrain_cfg = cfg.get("terrain", {})
+    style = cfg.get("style", {})
+    tint_strength = float(terrain_cfg.get("tint_strength", 0.25))
+    terrain_zorder = float(style.get("terrain_zorder", 0.5))
+    tile_zoom = terrain_cfg.get("tile_zoom", "auto")
+
+    # Boundary is already in EPSG:3857
+    minx, miny, maxx, maxy = boundary.total_bounds
+
+    try:
+        img, (w, s, e, n) = ctx.bounds2img(
+            minx, miny, maxx, maxy,
+            source=ctx.providers.Esri.WorldShadedRelief,
+            ll=False,
+            zoom=tile_zoom,
+        )
+    except Exception as exc:
+        print(f"[WARN] Could not fetch terrain tiles: {exc}")
         return
 
-    terrain_img = plt.imread(tint_path)
-    with rasterio.open(dem_path) as dem:
-        if dem.crs is None:
-            return
-        minx, miny, maxx, maxy = transform_bounds(dem.crs, TARGET_CRS, *dem.bounds, densify_pts=21)
+    # Convert to grayscale luminance (0-1)
+    gray = np.mean(img[..., :3].astype(np.float32), axis=2) / 255.0
+
+    # Build RGBA overlay matching the dark-theme tint formula:
+    #   gray channel = 150 + luminance * 50  (out of 255)
+    #   alpha = luminance * tint_strength
+    h, w_px = gray.shape
+    rgba = np.zeros((h, w_px, 4), dtype=np.float32)
+    base_gray = (150.0 + gray * 50.0) / 255.0
+    rgba[..., 0] = base_gray
+    rgba[..., 1] = base_gray
+    rgba[..., 2] = base_gray
+    rgba[..., 3] = gray * tint_strength
+
+    # extent for matplotlib imshow: (left, right, bottom, top)
+    extent = (w, e, s, n)
 
     image_artist = map_ax.imshow(
-        terrain_img,
-        extent=(minx, maxx, miny, maxy),
+        rgba,
+        extent=extent,
         origin="upper",
         interpolation="bilinear",
-        zorder=float(cfg.get("style", {}).get("terrain_zorder", 0.5)),
+        zorder=terrain_zorder,
     )
 
     clip_patch = _boundary_clip_patch(boundary)
