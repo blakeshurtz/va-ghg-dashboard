@@ -58,12 +58,13 @@ crs:
   map_crs: EPSG:5070
 
 terrain:
+  tile_zoom: 9
+  vertical_exaggeration: 1.8
+  tint_strength: 1.0
   output_resolution: 90
   nodata_value: -9999
   hillshade_azimuth: 315
   hillshade_altitude: 45
-  vertical_exaggeration: 1.0
-  tint_strength: 0.25
   dem_resample: bilinear
   processing_window_size: 1024
   max_pixels: 120000000
