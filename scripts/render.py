@@ -1,4 +1,4 @@
-"""Orchestrates layout-aware rendering targets."""
+"""Orchestrates the single-map rendering pipeline."""
 
 from __future__ import annotations
 
@@ -35,11 +35,9 @@ def _prepare_paths(cfg: dict[str, Any]) -> dict[str, Path]:
     output_dir = Path(render_cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    outputs = render_cfg["outputs"]
     return {
         "output_dir": output_dir,
-        "base_png": output_dir / outputs["base_png"],
-        "points_png": output_dir / outputs["points_png"],
+        "output_png": output_dir / render_cfg["output_png"],
     }
 
 
@@ -170,7 +168,6 @@ def _fetch_terrarium_elevation(
     They are served in Web Mercator (EPSG:3857), so no reprojection is needed
     for a 3857 display axis.
     """
-    # Convert 3857 bounds to lon/lat for tile indexing
     def _m_to_lon(mx: float) -> float:
         return mx / _WEB_MERCATOR_ORIGIN * 180.0
 
@@ -215,7 +212,6 @@ def _fetch_terrarium_elevation(
 
     print(f"[INFO] Terrain: fetched {downloaded}/{grid_w * grid_h} tiles at zoom {zoom}")
 
-    # Compute the 3857 extent of the full tile grid
     left = _tile_bounds_3857(x_min, y_min, zoom)[0]
     right = _tile_bounds_3857(x_max, y_min, zoom)[2]
     top = _tile_bounds_3857(x_min, y_min, zoom)[3]
@@ -230,11 +226,7 @@ def _compute_multidirectional_hillshade(
     cell_size_y: float,
     vertical_exag: float = 1.5,
 ) -> np.ndarray:
-    """Compute a multi-directional hillshade (0-1 float) from an elevation grid.
-
-    Uses four light azimuths (315, 270, 225, 360) to avoid harsh single-source
-    shadow artefacts.  The altitude is fixed at 45 degrees.
-    """
+    """Compute a multi-directional hillshade (0-1 float) from an elevation grid."""
     altitude = math.radians(45.0)
     azimuths_deg = [315.0, 270.0, 225.0, 360.0]
     weights = [0.40, 0.25, 0.20, 0.15]
@@ -263,26 +255,16 @@ def _apply_hypsometric_tint(
     background_rgb: tuple[float, float, float],
     tint_strength: float,
 ) -> np.ndarray:
-    """Build an RGBA overlay that combines hillshade relief with subtle
-    elevation-dependent colouring against a dark background.
-
-    Low elevations (coastal plain) are tinted cool blue-gray, mid elevations
-    (piedmont) are muted green-gray, and high elevations (Appalachians) are
-    warm brown-gray.  The overall effect is controlled by *tint_strength*.
-    """
+    """Build an RGBA overlay combining hillshade relief with elevation-dependent colouring."""
     h, w = hillshade.shape
     rgba = np.zeros((h, w, 4), dtype=np.float32)
 
     valid = np.isfinite(elevation)
     elev_safe = np.where(valid, elevation, 0.0)
 
-    # Normalise elevation to 0-1 range (clip sea-level to peak)
     e_min, e_max = 0.0, max(float(np.nanmax(elev_safe[valid])), 1.0) if np.any(valid) else (0.0, 1.0)
     e_norm = np.clip((elev_safe - e_min) / (e_max - e_min), 0.0, 1.0)
 
-    # Hypsometric colour ramp — bright enough to read against a dark background.
-    # Alpha controls how much shows, so the RGB values themselves should be
-    # moderately bright (0.5-0.85 range) so the terrain reads clearly.
     stops = np.array([0.0, 0.15, 0.35, 0.65, 1.0])
     colors = np.array([
         [0.42, 0.52, 0.60],   # coastal:   cool steel-blue
@@ -295,12 +277,9 @@ def _apply_hypsometric_tint(
     for ch in range(3):
         rgba[:, :, ch] = np.interp(e_norm, stops, colors[:, ch])
 
-    # Modulate by hillshade: lit slopes bright, shadow slopes dark
     shade_factor = 0.20 + hillshade * 0.80
     rgba[:, :, :3] *= shade_factor[..., np.newaxis]
 
-    # Alpha: visible everywhere, stronger in mountainous areas.
-    # Even flat coastal areas get enough alpha to show a faint terrain presence.
     relief = np.clip(e_norm * 1.3, 0.0, 1.0)
     base_alpha = 0.35 + relief * 0.40
     rgba[:, :, 3] = np.where(valid, base_alpha * tint_strength, 0.0)
@@ -310,13 +289,7 @@ def _apply_hypsometric_tint(
 
 
 def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
-    """Draw terrain from real DEM data, clipped to the boundary.
-
-    Downloads Terrarium-format elevation tiles from AWS S3 (natively in
-    EPSG:3857, so no reprojection is needed), computes a multi-directional
-    hillshade for realistic lighting, and applies subtle hypsometric tinting
-    to distinguish mountains from coastal plain.
-    """
+    """Draw terrain from Terrarium DEM tiles, clipped to the boundary."""
     terrain_cfg = cfg.get("terrain", {})
     style = cfg.get("style", {})
     tint_strength = float(terrain_cfg.get("tint_strength", 0.25))
@@ -342,7 +315,6 @@ def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
     elevation, (left, bottom, right, top) = result
     h, w = elevation.shape
 
-    # Cell size in metres (EPSG:3857 units)
     cell_x = (right - left) / w
     cell_y = (top - bottom) / h
 
@@ -365,31 +337,11 @@ def _draw_terrain_overlay(map_ax, boundary, cfg: dict[str, Any]) -> None:
         image_artist.set_clip_path(clip_patch)
 
 
-def render_layout_base(cfg: dict[str, Any]) -> Path:
-    """Render layout base map with boundary and blank panel."""
-    paths = _prepare_paths(cfg)
-    boundary = _load_boundary_3857(cfg)
-    pipelines = _load_pipelines_3857(cfg)
-    reference_layers = _load_reference_layers_3857(cfg)
-
-    fig, map_ax, panel_ax = create_canvas(cfg)
-    apply_dark_theme(fig, map_ax, panel_ax, cfg)
-    _draw_terrain_overlay(map_ax, boundary, cfg)
-    draw_boundary(map_ax, boundary, cfg)
-    if pipelines is not None:
-        draw_pipelines(map_ax, pipelines, boundary, cfg)
-    _draw_reference_layers(map_ax, boundary, cfg, reference_layers)
-    set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
-
-    _save_figure(fig, paths["base_png"], int(cfg["render"]["dpi"]))
-    return paths["base_png"]
-
-
-def render_layout_points(cfg: dict[str, Any]) -> Path:
-    """Render 2023 layout with facility icons scaled by GHG quantity."""
+def render_map(cfg: dict[str, Any]) -> Path:
+    """Render the full VA GHG map with boundary, layers, terrain, and facility icons."""
     emissions_csv = cfg["paths"].get("emissions_csv")
     if not emissions_csv:
-        raise ValueError("paths.emissions_csv is not set; cannot render points target.")
+        raise ValueError("paths.emissions_csv is not set; cannot render map.")
 
     paths = _prepare_paths(cfg)
     boundary = _load_boundary_3857(cfg)
@@ -414,5 +366,6 @@ def render_layout_points(cfg: dict[str, Any]) -> Path:
     draw_points_with_facility_icons(map_ax, points, cfg)
     set_extent_to_boundary(map_ax, boundary, padding_pct=float(cfg["style"].get("padding_pct", 0.02)))
 
-    _save_figure(fig, paths["points_png"], int(cfg["render"]["dpi"]))
-    return paths["points_png"]
+    output_path = paths["output_png"]
+    _save_figure(fig, output_path, int(cfg["render"]["dpi"]))
+    return output_path

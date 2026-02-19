@@ -1,20 +1,20 @@
 # Virginia Industrial Greenhouse Gas Dashboard (`va-ghg-dashboard`)
 
-A geospatial rendering pipeline for producing dark-theme dashboard layout artifacts of Virginia industrial greenhouse gas (GHG) facilities.
+A geospatial rendering pipeline for producing a dark-theme dashboard map of Virginia industrial greenhouse gas (GHG) facilities.
 
-The project currently generates PNG layout outputs (base map + points overlay) using configurable data paths and style settings, including per-facility icon overlays for reporting year 2023.
+The project renders a single PNG map showing the Virginia boundary, reference layers (pipelines, railroads, roads, ports, incorporated places), terrain relief fetched from AWS Terrarium tiles, and per-facility icon overlays for reporting year 2023.
 
 ---
 
-## What this project does now
+## What this project does
 
 - Loads and validates runtime configuration from `config.yml`.
 - Reads a Virginia boundary dataset and reprojects it for plotting.
 - Renders a 16:9 map + right-side panel layout in dark theme.
-- Produces two render targets:
-  - **base**: boundary-only layout (`layout_base.png`)
-  - **points**: boundary + 2023 facilities where mapped subparts render as icons sized by each facility's GHG quantity (`layout_points_icons_scaled.png`)
-- Generates terrain preprocessing artifacts when DEM tiles are available (clipped DEM, hillshade, and terrain tint overlay).
+- Fetches Terrarium elevation tiles at runtime to produce a multi-directional hillshade with hypsometric tinting.
+- Overlays reference infrastructure layers (pipelines, railroads, roads, ports, places).
+- Plots 2023 facility locations with subpart-based icons scaled by GHG emissions.
+- Outputs a single PNG: `output/va_ghg_map.png`.
 
 ---
 
@@ -22,17 +22,18 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 
 ```text
 .
-├── config.yml
-├── environment.yml
+├── config.yml               # Runtime configuration (paths, style, render settings)
+├── environment.yml           # Conda environment specification
 ├── scripts/
-│   ├── build.py          # CLI entrypoint (`--target base|points|terrain|all`)
-│   ├── config.py         # YAML load + schema/path validation
-│   ├── io.py             # Boundary/CSV loading + GeoDataFrame utilities
-│   ├── terrain.py        # DEM mosaic + clip + hillshade + tint pipeline
-│   ├── layout.py         # Figure, axes, and theme setup
-│   ├── map_base.py       # Boundary draw + extent helpers
-│   ├── points.py         # Point plotting helpers
-│   └── render.py         # Render orchestration for each target
+│   ├── build.py              # CLI entrypoint
+│   ├── config.py             # YAML load + schema/path validation
+│   ├── io.py                 # Boundary/CSV loading + GeoDataFrame utilities
+│   ├── layout.py             # Figure, axes, and theme setup
+│   ├── map_base.py           # Boundary draw + extent helpers
+│   ├── points.py             # Facility icon rendering
+│   ├── render.py             # Render orchestration
+│   ├── resize_icons.py       # Icon preprocessing utility
+│   └── merge_pipelines.py    # GeoJSON merge utility
 ├── data/
 │   ├── boundaries/
 │   │   └── va_boundary_20m.geojson
@@ -40,8 +41,10 @@ The project currently generates PNG layout outputs (base map + points overlay) u
 │   │   ├── facilities_va_validated.csv
 │   │   └── rejects/
 │   └── flight_cleaned_va_all_years.csv
-├── notebooks/
-└── output/               # Generated artifacts
+├── layers/                   # Reference geospatial layers
+├── icons/                    # Facility icon assets
+├── notebooks/                # Development notebooks
+└── output/                   # Generated artifacts
 ```
 
 ---
@@ -55,82 +58,42 @@ conda env create -f environment.yml
 conda activate va-ghg
 ```
 
-### 2) Run the renderer
-
-### 2b) (Optional but recommended) Generate smaller icon assets
-
-To avoid oversized map symbols, create small icon variants once and keep rendering pointed at `icons/small`:
+### 2) (Optional) Generate smaller icon assets
 
 ```bash
 python -m scripts.resize_icons --input-dir icons/original --output-dir icons/small --max-size-px 100
 ```
 
-Render both targets:
+### 3) Render the map
 
 ```bash
-python -m scripts.build --config config.yml --target all
+python -m scripts.build --config config.yml
 ```
 
-Render only one target:
-
-```bash
-python -m scripts.build --config config.yml --target base
-python -m scripts.build --config config.yml --target points
-```
-
-Expected outputs (default config):
-
-- `output/layout_base.png`
-- `output/layout_points_icons_scaled.png`
+Output: `output/va_ghg_map.png`
 
 ---
-
-### 3) Terrain preprocessing (optional, partial tile coverage is supported)
-
-Put any downloaded USGS 3DEP DEM `.tif` tiles in:
-
-- `data/terrain/raw/`
-
-You do **not** need full Virginia coverage. The terrain step will process whatever extent is available and clip to the Virginia boundary where DEM data exists.
-
-Run:
-
-```bash
-python -m scripts.build --config config.yml --target terrain
-# or include terrain with everything
-python -m scripts.build --config config.yml --target all
-```
-
-Terrain outputs are written to `data/terrain/processed/`:
-
-- `dem_va_clipped.tif`
-- `hillshade_va.tif`
-- `terrain_tint_va.png`
-
-If no tiles are found in `data/terrain/raw/`, the build prints a warning and continues without crashing.
-
----
-
 
 ## Configuration reference (`config.yml`)
 
 ### Top-level sections
 
 - `state`: state code (currently `VA`)
-- `render`: output sizing, DPI, theme, and filenames
+- `render`: output sizing, DPI, theme, and output filename
 - `layout`: map/panel width fractions (must sum to `1.0`)
-- `paths`: boundary and emissions input paths + lat/lon column names
+- `paths`: boundary, emissions, icons, and reference layer paths
+- `icons`: subpart-to-icon filename mappings
+- `terrain`: tile zoom level, vertical exaggeration, tint strength
 - `style`: map colors, alpha, line width, marker size, and extent padding
 
 ### Required keys (validated at runtime)
 
-- `render`: `width_px`, `height_px`, `dpi`, `output_dir`, `outputs`, `theme`
-- `render.outputs`: `base_png`, `points_png`
+- `render`: `width_px`, `height_px`, `dpi`, `output_dir`, `output_png`, `theme`
 - `layout`: `map_frac`, `panel_frac`
 - `paths`: `va_boundary`
 - `style`: `background`, `boundary_linewidth`, `boundary_alpha`
 
-If configured, `paths.emissions_csv` must exist to render the `points` target.
+If configured, `paths.emissions_csv` must point to an existing file.
 
 ---
 
@@ -142,7 +105,7 @@ If configured, `paths.emissions_csv` must exist to render the `points` target.
 
 ### Emissions input
 
-For `points` rendering, the CSV referenced by `paths.emissions_csv` must contain lat/lon columns defined by:
+The CSV referenced by `paths.emissions_csv` must contain lat/lon columns defined by:
 
 - `paths.emissions_lat_col` (default: `latitude`)
 - `paths.emissions_lon_col` (default: `longitude`)
@@ -157,19 +120,19 @@ Rows with non-numeric or missing coordinates are dropped during point conversion
 | **AA** | Pulp and Paper Manufacturing | Emissions from pulp & paper mills, including process emissions and combustion sources. ([click me](https://www.epa.gov/ghgreporting/subpart-aa-pulp-and-paper-manufacturing)) |
 | **C** | General Stationary Fuel Combustion | Boilers, heaters, turbines, furnaces, and other stationary combustion units used for heat and power. ([click me](https://www.epa.gov/ghgreporting/subpart-c-general-stationary-fuel-combustion-sources)) |
 | **D** | Electricity Generation | Fossil-fuel power plants generating electricity for grid supply. ([click me](https://www.epa.gov/ghgreporting/subpart-d-electricity-generation)) |
-| **DD** | Electrical Transmission & Distribution Equipment | SF₆ and other fluorinated gases from electrical switchgear and transmission equipment. ([click me](https://www.epa.gov/ghgreporting/subpart-dd-use-electric-transmission-and-distribution-equipment)) |
+| **DD** | Electrical Transmission & Distribution Equipment | SF6 and other fluorinated gases from electrical switchgear and transmission equipment. ([click me](https://www.epa.gov/ghgreporting/subpart-dd-use-electric-transmission-and-distribution-equipment)) |
 | **FF** | Underground Coal Mines | Methane emissions released from underground coal mining operations. ([click me](https://www.epa.gov/ghgreporting/subpart-ff-underground-coal-mines)) |
 | **G** | Ammonia Manufacturing | Hydrogen reforming and chemical processes used to manufacture ammonia (fertilizer production). ([click me](https://www.epa.gov/ghgreporting/subpart-g-ammonia-manufacturing)) |
-| **H** | Cement Production | CO₂ released during clinker production and kiln operations in cement manufacturing. ([click me](https://www.epa.gov/ghgreporting/subpart-h-cement-production)) |
+| **H** | Cement Production | CO2 released during clinker production and kiln operations in cement manufacturing. ([click me](https://www.epa.gov/ghgreporting/subpart-h-cement-production)) |
 | **HH** | Municipal Solid Waste Landfills | Methane emissions generated from decomposition of waste in municipal landfills. ([click me](https://www.epa.gov/ghgreporting/subpart-hh-municipal-solid-waste-landfills)) |
 | **I** | Electronics Manufacturing | Semiconductor and electronics manufacturing emissions, including fluorinated gases. ([click me](https://www.epa.gov/ghgreporting/subpart-i-electronics-manufacturing)) |
 | **II** | Industrial Wastewater Treatment | Methane and nitrous oxide emissions from treatment of industrial wastewater streams. ([click me](https://www.epa.gov/ghgreporting/subpart-ii-industrial-wastewater-treatment)) |
 | **N** | Glass Production | Process and combustion emissions from glass and fiberglass manufacturing furnaces. ([click me](https://www.epa.gov/ghgreporting/subpart-n-glass-production)) |
 | **NN** | Suppliers of Natural Gas & Natural Gas Liquefied Liquids | Distribution and supply of natural gas and NGLs, including fugitive emissions accounting. ([click me](https://www.epa.gov/ghgreporting/subpart-nn-suppliers-natural-gas-and-natural-gas-liquids)) |
 | **P** | Hydrogen Production | Industrial hydrogen production via reforming or gasification processes. ([click me](https://www.epa.gov/ghgreporting/subpart-p-hydrogen-production)) |
-| **PP** | Suppliers of Carbon Dioxide | Facilities that capture, produce, or supply CO₂ for industrial or commercial use. ([click me](https://www.epa.gov/ghgreporting/subpart-pp-suppliers-carbon-dioxide)) |
-| **Q** | Iron and Steel Production | Blast furnaces, coke production, and steelmaking operations emitting CO₂. ([click me](https://www.epa.gov/ghgreporting/subpart-q-iron-and-steel-production)) |
-| **S** | Lime Manufacturing | Calcination of limestone/dolomite to produce lime, releasing CO₂. ([click me](https://www.epa.gov/ghgreporting/subpart-s-lime-manufacturing)) |
+| **PP** | Suppliers of Carbon Dioxide | Facilities that capture, produce, or supply CO2 for industrial or commercial use. ([click me](https://www.epa.gov/ghgreporting/subpart-pp-suppliers-carbon-dioxide)) |
+| **Q** | Iron and Steel Production | Blast furnaces, coke production, and steelmaking operations emitting CO2. ([click me](https://www.epa.gov/ghgreporting/subpart-q-iron-and-steel-production)) |
+| **S** | Lime Manufacturing | Calcination of limestone/dolomite to produce lime, releasing CO2. ([click me](https://www.epa.gov/ghgreporting/subpart-s-lime-manufacturing)) |
 | **TT** | Industrial Waste Landfills | Methane emissions from disposal of industrial waste materials. ([click me](https://www.epa.gov/ghgreporting/subpart-tt-industrial-waste-landfills)) |
 | **V** | Nitric Acid Production | Nitrous oxide emissions from nitric acid production processes. ([click me](https://www.epa.gov/ghgreporting/subpart-v-nitric-acid-production)) |
 | **W** | Petroleum & Natural Gas Systems | Oil & gas production, processing, transmission, storage, and distribution systems. ([click me](https://www.epa.gov/ghgreporting/subpart-w-petroleum-and-natural-gas-systems)) |
@@ -210,7 +173,7 @@ Primary table: `data/flight_cleaned_va_all_years.csv`
 
 - **Config validation errors**: check required keys and section names in `config.yml`.
 - **Boundary file errors**: confirm `paths.va_boundary` exists and is non-empty.
-- **Points rendering errors**: verify `paths.emissions_csv` exists and includes valid lat/lon columns.
+- **Emissions rendering errors**: verify `paths.emissions_csv` exists and includes valid lat/lon columns.
 - **Import errors**: ensure dependencies from `environment.yml` are installed in the active environment.
 
 ---
