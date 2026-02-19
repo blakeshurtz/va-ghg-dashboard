@@ -6,10 +6,7 @@ render:
   dpi: 150
   theme: dark
   output_dir: output
-  outputs:
-    base_png: layout_base.png
-    points_png: layout_points_icons_scaled.png
-  output_pdf: output/va_ghg_dashboard.pdf
+  output_png: va_ghg_map.png
 
 layout:
   map_frac: 0.66
@@ -17,10 +14,6 @@ layout:
 
 paths:
   va_boundary: data/boundaries/va_boundary_20m.geojson
-  va_boundary_path: data/boundaries/va_boundary_20m.geojson
-  icons_source_dir: icons/original
-  terrain_raw_dir: layers/terrain/raw
-  terrain_processed_dir: layers/terrain/processed
   emissions_csv: data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
@@ -54,21 +47,10 @@ icons:
     "C,TT": icon_v2_TT
     "AA,C,TT": icon_v2_AA_C
 
-crs:
-  map_crs: EPSG:5070
-
 terrain:
   tile_zoom: 9
   vertical_exaggeration: 1.8
   tint_strength: 1.0
-  output_resolution: 90
-  nodata_value: -9999
-  hillshade_azimuth: 315
-  hillshade_altitude: 45
-  dem_resample: bilinear
-  processing_window_size: 1024
-  max_pixels: 120000000
-  max_memory_mb: 2500
 
 style:
   background: "#0b0f14"
@@ -79,7 +61,7 @@ style:
   boundary_linewidth: 1.4
   boundary_alpha: 0.85
 
-  # Facilities (keep your orange, it’s great on dark)
+  # Facilities (keep your orange, it's great on dark)
   points_color: "#ff8c42"
   icon_zoom: 0.085
   icon_zoom_scale_min: 0.75
@@ -87,12 +69,6 @@ style:
   icon_size_emissions_col: ghg_quantity_metric_tons_co2e
 
   padding_pct: 0.02
-
-  # Water (rivers)
-  rivers_color: "#2f80ed"
-  rivers_linewidth: 0.7
-  rivers_alpha: 0.65
-  rivers_zorder: 2.05
 
   # Pipelines (teal)
   pipelines_color: "#9D00FF"
@@ -106,21 +82,11 @@ style:
   railroads_alpha: 0.28
   railroads_zorder: 2.1
 
-  # Roads — Google-ish hierarchy via thickness + opacity
-  highways_color: "#fff2b3"           # brightest roads
-  highways_linewidth: 1.25
-  highways_alpha: 0.42
-  highways_zorder: 2.4
-
+  # Roads
   primary_roads_color: "#ffd27a"
   primary_roads_linewidth: 0.85
   primary_roads_alpha: 0.34
   primary_roads_zorder: 2.3
-
-  secondary_roads_color: "#f3e6c8"
-  secondary_roads_linewidth: 0.55
-  secondary_roads_alpha: 0.22
-  secondary_roads_zorder: 2.2
 
   # Places (quiet)
   incorporated_places_color: "#9aa7b4"
@@ -128,7 +94,7 @@ style:
   incorporated_places_alpha: 0.18
   incorporated_places_zorder: 1.7
 
-  # Ports (keep cyan but slightly softer so it doesn’t fight water)
+  # Ports
   principal_ports_color: "#4dd0e1"
   principal_ports_alpha: 0.25
   principal_ports_marker_size: 9

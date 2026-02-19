@@ -1,26 +1,16 @@
-"""CLI entrypoint for layout-aware dashboard renders."""
+"""CLI entrypoint for the VA GHG dashboard map render."""
 
 from __future__ import annotations
 
 import argparse
 
 from scripts.config import load_yaml_config, validate_config
-from scripts.render import render_layout_base, render_layout_points
-from scripts.terrain import run_terrain_pipeline
-
-
-TARGET_CHOICES = ("base", "points", "terrain", "all")
+from scripts.render import render_map
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build VA GHG render artifacts")
+    parser = argparse.ArgumentParser(description="Render the VA GHG dashboard map")
     parser.add_argument("--config", default="config.yml", help="Path to YAML config")
-    parser.add_argument(
-        "--target",
-        default="all",
-        choices=TARGET_CHOICES,
-        help="Render target: base, points, terrain, or all",
-    )
     args = parser.parse_args()
 
     try:
@@ -28,23 +18,8 @@ def main() -> int:
         validate_config(cfg)
         print(f"[OK] Loaded and validated config: {args.config}")
 
-        if args.target in ("terrain", "all"):
-            print("[NEXT] Running terrain acquisition + preprocessing + tint generation...")
-            terrain_result = run_terrain_pipeline(cfg)
-            if terrain_result is None:
-                print("[WARN] Terrain step skipped.")
-            else:
-                print(f"[OK] Terrain DEM clipped: {terrain_result.dem_path}")
-                print(f"[OK] Terrain hillshade: {terrain_result.hillshade_path}")
-                print(f"[OK] Terrain tint PNG: {terrain_result.tint_png_path}")
-
-        if args.target in ("base", "all"):
-            base_path = render_layout_base(cfg)
-            print(f"[OK] Rendered base layout PNG: {base_path}")
-
-        if args.target in ("points", "all"):
-            points_path = render_layout_points(cfg)
-            print(f"[OK] Rendered points layout PNG: {points_path}")
+        output_path = render_map(cfg)
+        print(f"[OK] Rendered map: {output_path}")
 
         print("[OK] Build finished.")
         return 0

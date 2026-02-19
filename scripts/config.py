@@ -8,8 +8,7 @@ from typing import Any
 import yaml
 
 
-REQUIRED_RENDER_KEYS = {"width_px", "height_px", "dpi", "output_dir", "outputs", "theme"}
-REQUIRED_OUTPUT_KEYS = {"base_png", "points_png"}
+REQUIRED_RENDER_KEYS = {"width_px", "height_px", "dpi", "output_dir", "output_png", "theme"}
 REQUIRED_LAYOUT_KEYS = {"map_frac", "panel_frac"}
 REQUIRED_PATH_KEYS = {"va_boundary"}
 REQUIRED_STYLE_KEYS = {
@@ -52,14 +51,6 @@ def validate_config(cfg: dict[str, Any]) -> None:
     if missing_render:
         raise ValueError(f"Missing render keys: {sorted(missing_render)}")
 
-    outputs = render.get("outputs")
-    if not isinstance(outputs, dict):
-        raise ValueError("Config key 'render.outputs' must be a mapping/object.")
-
-    missing_outputs = REQUIRED_OUTPUT_KEYS - set(outputs)
-    if missing_outputs:
-        raise ValueError(f"Missing render.outputs keys: {sorted(missing_outputs)}")
-
     missing_layout = REQUIRED_LAYOUT_KEYS - set(layout)
     if missing_layout:
         raise ValueError(f"Missing layout keys: {sorted(missing_layout)}")
@@ -75,7 +66,6 @@ def validate_config(cfg: dict[str, Any]) -> None:
     va_boundary_path = Path(str(paths["va_boundary"]))
     if not va_boundary_path.exists():
         raise FileNotFoundError(f"Boundary file not found: {va_boundary_path}")
-
 
     pipelines = paths.get("pipelines")
     if pipelines is not None and str(pipelines).strip():
@@ -101,63 +91,6 @@ def validate_config(cfg: dict[str, Any]) -> None:
                 f"Configured emissions CSV not found: {emissions_path}. "
                 "Set paths.emissions_csv to null/empty to skip points rendering."
             )
-
-
-    va_boundary_path = paths.get("va_boundary_path")
-    if va_boundary_path is not None and str(va_boundary_path).strip():
-        boundary_override_path = Path(str(va_boundary_path))
-        if not boundary_override_path.exists():
-            raise FileNotFoundError(
-                f"Configured terrain boundary file not found: {boundary_override_path}"
-            )
-
-
-    terrain = cfg.get("terrain")
-    if terrain is not None:
-        if not isinstance(terrain, dict):
-            raise ValueError("Config section 'terrain' must be a mapping/object when provided.")
-        output_resolution = terrain.get("output_resolution")
-        if output_resolution is not None:
-            try:
-                output_resolution_value = float(output_resolution)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    "Config key 'terrain.output_resolution' must be numeric when provided."
-                ) from exc
-            if output_resolution_value <= 0:
-                raise ValueError("Config key 'terrain.output_resolution' must be > 0 when provided.")
-
-        processing_window_size = terrain.get("processing_window_size")
-        if processing_window_size is not None:
-            try:
-                processing_window_size_value = int(processing_window_size)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    "Config key 'terrain.processing_window_size' must be an integer when provided."
-                ) from exc
-            if processing_window_size_value <= 0:
-                raise ValueError(
-                    "Config key 'terrain.processing_window_size' must be > 0 when provided."
-                )
-
-        for key in ("max_pixels", "max_memory_mb"):
-            value = terrain.get(key)
-            if value is None:
-                continue
-            try:
-                numeric_value = float(value)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"Config key 'terrain.{key}' must be numeric when provided.") from exc
-            if numeric_value <= 0:
-                raise ValueError(f"Config key 'terrain.{key}' must be > 0 when provided.")
-
-    crs = cfg.get("crs")
-    if crs is not None:
-        if not isinstance(crs, dict):
-            raise ValueError("Config section 'crs' must be a mapping/object when provided.")
-        map_crs = crs.get("map_crs")
-        if map_crs is not None and not str(map_crs).strip():
-            raise ValueError("Config key 'crs.map_crs' cannot be empty when provided.")
 
     missing_style = REQUIRED_STYLE_KEYS - set(style)
     if missing_style:
