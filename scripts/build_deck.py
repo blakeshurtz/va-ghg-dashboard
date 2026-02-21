@@ -38,7 +38,8 @@ def _clip_to_boundary(layer: gpd.GeoDataFrame, boundary: gpd.GeoDataFrame) -> gp
 
     clipped = layer.copy()
     clipped["geometry"] = clipped.geometry.intersection(boundary_union)
-    clipped = clipped[~clipped.geometry.is_empty & clipped.geometry.notna()].copy()
+    valid_geometry = (~clipped.geometry.is_empty) & (~clipped.geometry.isna())
+    clipped = clipped[valid_geometry].copy()
     return clipped
 
 

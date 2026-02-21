@@ -43,6 +43,7 @@ function clampToVirginia(viewState, bounds) {
     const manifest = await loadManifest();
     const ghgGeoJson = await loadJson(`../${manifest.files.ghg}`);
     const ghgFeatures = ghgGeoJson.features || [];
+    const terrainBounds = manifest.bounds;
 
     const viewState = {
       longitude: manifest.center[0],
@@ -59,6 +60,7 @@ function clampToVirginia(viewState, bounds) {
         id: 'terrain',
         elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
         texture: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        bounds: terrainBounds,
         elevationDecoder: {rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768},
         strategy: 'no-overlap',
         minZoom: 0,
