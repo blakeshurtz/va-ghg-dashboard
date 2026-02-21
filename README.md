@@ -4,6 +4,13 @@ A geospatial rendering pipeline for producing a dark-theme dashboard map of Virg
 
 The project renders a single PNG map showing the Virginia boundary, reference layers (pipelines, railroads, roads, ports, incorporated places), terrain relief fetched from AWS Terrarium tiles, and per-facility icon overlays for reporting year 2023.
 
+
+## Map preview and web version
+
+![Virginia GHG dashboard map](output/va_ghg_map.png)
+
+Interactive web map: https://blakeshurtz.github.io/va-ghg-dashboard/web/
+
 ---
 
 ## What this project does
