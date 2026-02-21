@@ -25,7 +25,24 @@ def _write_geojson(path: Path, gdf: gpd.GeoDataFrame) -> None:
     path.write_text(json.dumps(_to_feature_collection(gdf), separators=(",", ":")))
 
 
-def _ghg_points(cfg: dict[str, Any]) -> gpd.GeoDataFrame:
+def _clip_to_boundary(layer: gpd.GeoDataFrame, boundary: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Clip any layer to Virginia to avoid shipping continental-scale geometry."""
+    if layer.crs is None:
+        raise ValueError("Layer has no CRS; cannot clip to boundary.")
+
+    if boundary.crs is None:
+        raise ValueError("Boundary has no CRS; cannot clip layers.")
+
+    boundary_local = boundary.to_crs(layer.crs) if layer.crs != boundary.crs else boundary
+    boundary_union = boundary_local.geometry.union_all()
+
+    clipped = layer.copy()
+    clipped["geometry"] = clipped.geometry.intersection(boundary_union)
+    clipped = clipped[~clipped.geometry.is_empty & clipped.geometry.notna()].copy()
+    return clipped
+
+
+def _ghg_points(cfg: dict[str, Any], boundary: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     paths = cfg["paths"]
     emissions_df = load_emissions_csv(paths["emissions_csv"])
     emissions_df = emissions_df.loc[emissions_df["reporting_year"] == 2023].copy()
@@ -35,6 +52,7 @@ def _ghg_points(cfg: dict[str, Any]) -> gpd.GeoDataFrame:
         lon_col=paths.get("emissions_lon_col", "longitude"),
         crs=EPSG_4326,
     )
+    gdf = _clip_to_boundary(gdf, boundary)
     gdf["ghg_quantity_metric_tons_co2e"] = pd.to_numeric(
         gdf.get("ghg_quantity_metric_tons_co2e"), errors="coerce"
     ).fillna(0)
@@ -62,13 +80,13 @@ def build_deck_assets(cfg: dict[str, Any]) -> Path:
     pipelines = load_vector_collection(
         cfg["paths"]["pipelines"], layer=cfg["paths"].get("pipelines_layer")
     )
-    _write_geojson(output_dir / "pipelines.geojson", pipelines)
+    _write_geojson(output_dir / "pipelines.geojson", _clip_to_boundary(pipelines, boundary))
 
     for layer_name in ["railroads", "primary_roads", "incorporated_places", "principal_ports"]:
         layer = load_vector_collection(cfg["paths"][layer_name])
-        _write_geojson(output_dir / f"{layer_name}.geojson", layer)
+        _write_geojson(output_dir / f"{layer_name}.geojson", _clip_to_boundary(layer, boundary))
 
-    ghg = _ghg_points(cfg)
+    ghg = _ghg_points(cfg, boundary)
     _write_geojson(output_dir / "ghg_2023.geojson", ghg)
 
     bounds = boundary.to_crs(EPSG_4326).total_bounds
