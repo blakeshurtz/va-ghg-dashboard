@@ -71,6 +71,16 @@ def _ghg_points(cfg: dict[str, Any], boundary: gpd.GeoDataFrame) -> gpd.GeoDataF
     return gdf[keep_cols]
 
 
+def _icon_manifest(cfg: dict[str, Any]) -> dict[str, Any]:
+    icons_cfg = cfg.get("icons", {})
+    paths_cfg = cfg.get("paths", {})
+    return {
+        "base_dir": str(paths_cfg.get("icons_dir", "geo-icons")),
+        "default": str(icons_cfg.get("default", "manufacturing")),
+        "by_subparts": icons_cfg.get("by_subparts", {}),
+    }
+
+
 def build_deck_assets(cfg: dict[str, Any]) -> Path:
     output_dir = Path(cfg["render"]["output_dir"]) / "deck-data"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +115,7 @@ def build_deck_assets(cfg: dict[str, Any]) -> Path:
             "principal_ports": "output/deck-data/principal_ports.geojson",
             "ghg": "output/deck-data/ghg_2023.geojson",
         },
+        "icons": _icon_manifest(cfg),
     }
     (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
     return output_dir

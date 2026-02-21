@@ -1,4 +1,4 @@
-const {DeckGL, TerrainLayer, GeoJsonLayer, ScatterplotLayer, MaskExtension} = deck;
+const {DeckGL, TerrainLayer, GeoJsonLayer, IconLayer, MaskExtension} = deck;
 
 const COLORS = {
   boundary: [143, 166, 189, 220],
@@ -6,8 +6,7 @@ const COLORS = {
   railroads: [215, 221, 230, 92],
   roads: [255, 210, 122, 120],
   places: [154, 167, 180, 60],
-  ports: [77, 208, 225, 160],
-  ghg: [255, 140, 66, 190]
+  ports: [77, 208, 225, 160]
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -26,6 +25,51 @@ async function loadManifest() {
 
 function formatTons(value) {
   return Number(value || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+}
+
+function normalizeSubparts(subparts) {
+  return String(subparts || '')
+    .split(',')
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)
+    .sort()
+    .join(',');
+}
+
+function iconNameToFile(iconName) {
+  if (typeof iconName !== 'string' || iconName.length === 0) {
+    return 'manufacturing.jpg';
+  }
+  if (iconName.includes('.')) {
+    return iconName;
+  }
+  return `${iconName}.png`;
+}
+
+function buildFacilityIconResolver(manifest) {
+  const iconConfig = manifest.icons || {};
+  const iconsBaseDir = iconConfig.base_dir || 'geo-icons';
+  const bySubpartsRaw = iconConfig.by_subparts || {};
+  const defaultIconName = iconConfig.default || 'manufacturing';
+
+  const bySubparts = {};
+  Object.entries(bySubpartsRaw).forEach(([subparts, iconName]) => {
+    bySubparts[normalizeSubparts(subparts)] = iconNameToFile(iconName);
+  });
+
+  const defaultIconFile = iconNameToFile(defaultIconName);
+
+  return (feature) => {
+    const subparts = normalizeSubparts(feature?.properties?.subparts);
+    const iconFile = bySubparts[subparts] || defaultIconFile;
+    return {
+      url: `../${iconsBaseDir}/${iconFile}`,
+      width: 128,
+      height: 128,
+      anchorY: 128,
+      mask: false
+    };
+  };
 }
 
 function clampToVirginia(viewState, bounds) {
@@ -47,6 +91,7 @@ function clampToVirginia(viewState, bounds) {
     const boundaryFeatures = boundaryGeoJson.features || [];
     const terrainBounds = manifest.bounds;
     const terrainExtensions = MaskExtension ? [new MaskExtension()] : [];
+    const getFacilityIcon = buildFacilityIconResolver(manifest);
 
     const viewState = {
       longitude: manifest.center[0],
@@ -71,7 +116,7 @@ function clampToVirginia(viewState, bounds) {
       new TerrainLayer({
         id: 'terrain',
         elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-        texture: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        texture: 'https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
         bounds: terrainBounds,
         extensions: terrainExtensions,
         maskId: 'va-mask',
@@ -141,16 +186,13 @@ function clampToVirginia(viewState, bounds) {
         getFillColor: COLORS.ports,
         pickable: true
       }),
-      new ScatterplotLayer({
+      new IconLayer({
         id: 'ghg-facilities',
         data: ghgFeatures,
-        filled: true,
-        stroked: false,
         getPosition: (d) => d.geometry.coordinates,
-        getRadius: (d) => d.properties.radius_m,
-        radiusUnits: 'meters',
-        radiusMinPixels: 2,
-        getFillColor: COLORS.ghg,
+        getIcon: getFacilityIcon,
+        getSize: (d) => clamp(Math.sqrt(d.properties.radius_m || 600) * 1.1, 22, 56),
+        sizeUnits: 'pixels',
         pickable: true
       })
     ];
