@@ -40,7 +40,7 @@ def _normalize_subparts(subparts: str) -> str:
 
 
 def _load_icon_mappings(cfg: dict[str, Any]) -> tuple[str, dict[str, str]]:
-    icon_cfg = cfg.get("icons", {})
+    icon_cfg = cfg.get("geo-icons", {})
     default_icon = str(icon_cfg.get("default", "manufacturing.jpg"))
 
     raw_mapping = icon_cfg.get("by_subparts", _DEFAULT_ICON_BY_SUBPARTS)
@@ -88,7 +88,7 @@ def draw_points_with_facility_icons(
     if points_gdf.empty:
         return
 
-    icon_dir = Path(cfg.get("paths", {}).get("icons_dir", "icons"))
+    icon_dir = Path(cfg.get("paths", {}).get("icons_dir", "geo-icons"))
     default_icon, icon_by_subparts = _load_icon_mappings(cfg)
     base_icon_zoom = float(style.get("icon_zoom", 0.085))
     min_zoom_scale = float(style.get("icon_zoom_scale_min", 0.75))

@@ -13,17 +13,17 @@ layout:
   panel_frac: 0.34
 
 paths:
-  va_boundary: boundaries/va_boundary_20m.geojson
-  emissions_csv: data/flight_cleaned_va_all_years.csv
+  va_boundary: geo-boundaries/va_boundary_20m.geojson
+  emissions_csv: ghg-data/flight_cleaned_va_all_years.csv
   emissions_lat_col: latitude
   emissions_lon_col: longitude
-  icons_dir: icons/small
-  pipelines: layers/natural_gas_pipelines/pipelines_us.gpkg
+  icons_dir: geo-icons/small
+  pipelines: geo-layers/natural_gas_pipelines/pipelines_us.gpkg
   pipelines_layer: pipelines_us
-  railroads: layers/railroads/railroads
-  primary_roads: layers/primary_roads/primary_roads
-  principal_ports: layers/principal_ports/principal_ports/Principal Ports_20250824_022058_chunk0000.geojson
-  incorporated_places: layers/incorporated_places/incorporated_places/Incorporated Places_20250824_023605_chunk0000.geojson
+  railroads: geo-layers/railroads/railroads
+  primary_roads: geo-layers/primary_roads/primary_roads
+  principal_ports: geo-layers/principal_ports/principal_ports/Principal Ports_20250824_022058_chunk0000.geojson
+  incorporated_places: geo-layers/incorporated_places/incorporated_places/Incorporated Places_20250824_023605_chunk0000.geojson
 
 icons:
   default: icon_v2_C

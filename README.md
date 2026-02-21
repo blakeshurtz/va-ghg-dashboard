@@ -34,15 +34,15 @@ The project renders a single PNG map showing the Virginia boundary, reference la
 │   ├── render.py             # Render orchestration
 │   ├── resize_icons.py       # Icon preprocessing utility
 │   └── merge_pipelines.py    # GeoJSON merge utility
-├── boundaries/               # State/census boundary layers
+├── geo-boundaries/               # State/census boundary layers
 │   └── va_boundary_20m.geojson
-├── data/
+├── ghg-data/
 │   ├── curated/
 │   │   ├── facilities_va_validated.csv
 │   │   └── rejects/
 │   └── flight_cleaned_va_all_years.csv
-├── layers/                   # Reference geospatial layers
-├── icons/                    # Facility icon assets
+├── geo-layers/                   # Reference geospatial layers
+├── geo-icons/                    # Facility icon assets
 ├── notebooks/                # Development notebooks
 └── output/                   # Generated artifacts
 ```
@@ -61,7 +61,7 @@ conda activate va-ghg
 ### 2) (Optional) Generate smaller icon assets
 
 ```bash
-python -m scripts.resize_icons --input-dir icons/original --output-dir icons/small --max-size-px 100
+python -m scripts.resize_icons --input-dir geo-icons/original --output-dir geo-icons/small --max-size-px 100
 ```
 
 ### 3) Render the map
@@ -148,7 +148,7 @@ Rows with non-numeric or missing coordinates are dropped during point conversion
 
 ### Data dictionary (EPA FLIGHT cleaned output)
 
-Primary table: `data/flight_cleaned_va_all_years.csv`
+Primary table: `ghg-data/flight_cleaned_va_all_years.csv`
 
 | Column | Type | Description |
 | --- | --- | --- |
