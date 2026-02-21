@@ -100,7 +100,7 @@ function clampToVirginia(viewState, bounds) {
       minZoom: 7.1,
       maxZoom: 11.5,
       pitch: 0,
-      bearing: 
+      bearing: 0
     };
 
     const layers = [
