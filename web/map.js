@@ -56,11 +56,21 @@ function clampToVirginia(viewState, bounds) {
     };
 
     const layers = [
+      new GeoJsonLayer({
+        id: 'va-mask',
+        data: `../${manifest.files.boundary}`,
+        filled: true,
+        stroked: false,
+        getFillColor: [0, 0, 0, 255],
+        operation: 'mask'
+      }),
       new TerrainLayer({
         id: 'terrain',
         elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
         texture: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
         bounds: terrainBounds,
+        extent: terrainBounds,
+        maskId: 'va-mask',
         elevationDecoder: {rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768},
         strategy: 'no-overlap',
         minZoom: 0,
