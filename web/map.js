@@ -32,9 +32,9 @@ function clampToVirginia(viewState, bounds) {
   const [minLon, minLat, maxLon, maxLat] = bounds;
   return {
     ...viewState,
-    longitude: clamp(viewState.longitude, minLon - 0.4, maxLon + 0.4),
-    latitude: clamp(viewState.latitude, minLat - 0.4, maxLat + 0.4),
-    zoom: clamp(viewState.zoom, 6, 11)
+    longitude: clamp(viewState.longitude, minLon - 0.2, maxLon + 0.2),
+    latitude: clamp(viewState.latitude, minLat - 0.2, maxLat + 0.2),
+    zoom: clamp(viewState.zoom, 7.1, 11.5)
   };
 }
 
@@ -51,9 +51,9 @@ function clampToVirginia(viewState, bounds) {
     const viewState = {
       longitude: manifest.center[0],
       latitude: manifest.center[1],
-      zoom: 7,
-      minZoom: 6,
-      maxZoom: 11,
+      zoom: 7.4,
+      minZoom: 7.1,
+      maxZoom: 11.5,
       pitch: 45,
       bearing: 18
     };
@@ -157,7 +157,7 @@ function clampToVirginia(viewState, bounds) {
 
     new DeckGL({
       container: 'app',
-      mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      mapStyle: null,
       controller: true,
       initialViewState: viewState,
       onViewStateChange: ({viewState: next}) => clampToVirginia(next, manifest.bounds),
