@@ -72,6 +72,19 @@ python -m scripts.build --config config.yml
 
 Output: `output/va_ghg_map.png`
 
+### 4) Build deck.gl assets and run the interactive map
+
+```bash
+python -m scripts.build --config config.yml --target deck
+python -m http.server 8000
+```
+
+Then open `http://localhost:8000/web/` to view the interactive deck.gl map with:
+- Terrain (`TerrainLayer` + AWS Terrarium elevation tiles)
+- Geo reference layers (pipelines, railroads, roads, incorporated places, ports, VA boundary), clipped to Virginia for better performance
+- GHG facilities (`ScatterplotLayer`, 2023 only, radius scaled by emissions)
+
+
 ---
 
 ## Configuration reference (`config.yml`)
