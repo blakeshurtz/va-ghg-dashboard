@@ -1,4 +1,4 @@
-const {DeckGL, TerrainLayer, GeoJsonLayer, ScatterplotLayer, MaskExtension} = deck;
+const {DeckGL, TerrainLayer, GeoJsonLayer, IconLayer, MaskExtension} = deck;
 
 const COLORS = {
   boundary: [143, 166, 189, 220],
@@ -8,6 +8,21 @@ const COLORS = {
   places: [154, 167, 180, 60],
   ports: [77, 208, 225, 160],
   ghg: [255, 140, 66, 190]
+};
+
+const DEFAULT_ICON = 'manufacturing.jpg';
+const ICON_BY_SUBPARTS = {
+  C: 'factory_C.jpg',
+  'C,HH': 'CHH_furnace.jpg',
+  'C,Q': 'CQ_tanks.jpg',
+  'C,W': 'CW_clarifier.jpg',
+  'C,S': 'CS_steel.jpg',
+  FF: 'coal.jpg',
+  D: 'power.jpg',
+  'C,D': 'power.jpg',
+  'C,G,PP': 'chemical.jpg',
+  'C,H': 'cement.jpg',
+  TT: 'generation.jpg'
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -26,6 +41,27 @@ async function loadManifest() {
 
 function formatTons(value) {
   return Number(value || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+}
+
+function normalizeSubparts(subparts) {
+  return String(subparts || '')
+    .split(',')
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)
+    .sort()
+    .join(',');
+}
+
+function getFacilityIcon(feature) {
+  const subparts = normalizeSubparts(feature?.properties?.subparts);
+  const iconName = ICON_BY_SUBPARTS[subparts] || DEFAULT_ICON;
+  return {
+    url: `../geo-icons/old/${iconName}`,
+    width: 128,
+    height: 128,
+    anchorY: 128,
+    mask: false
+  };
 }
 
 function clampToVirginia(viewState, bounds) {
@@ -141,16 +177,13 @@ function clampToVirginia(viewState, bounds) {
         getFillColor: COLORS.ports,
         pickable: true
       }),
-      new ScatterplotLayer({
+      new IconLayer({
         id: 'ghg-facilities',
         data: ghgFeatures,
-        filled: true,
-        stroked: false,
         getPosition: (d) => d.geometry.coordinates,
-        getRadius: (d) => d.properties.radius_m,
-        radiusUnits: 'meters',
-        radiusMinPixels: 2,
-        getFillColor: COLORS.ghg,
+        getIcon: getFacilityIcon,
+        getSize: (d) => clamp(Math.sqrt(d.properties.radius_m || 600) * 1.1, 22, 56),
+        sizeUnits: 'pixels',
         pickable: true
       })
     ];
