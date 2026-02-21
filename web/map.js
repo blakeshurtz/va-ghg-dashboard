@@ -6,23 +6,7 @@ const COLORS = {
   railroads: [215, 221, 230, 92],
   roads: [255, 210, 122, 120],
   places: [154, 167, 180, 60],
-  ports: [77, 208, 225, 160],
-  ghg: [255, 140, 66, 190]
-};
-
-const DEFAULT_ICON = 'manufacturing.jpg';
-const ICON_BY_SUBPARTS = {
-  C: 'factory_C.jpg',
-  'C,HH': 'CHH_furnace.jpg',
-  'C,Q': 'CQ_tanks.jpg',
-  'C,W': 'CW_clarifier.jpg',
-  'C,S': 'CS_steel.jpg',
-  FF: 'coal.jpg',
-  D: 'power.jpg',
-  'C,D': 'power.jpg',
-  'C,G,PP': 'chemical.jpg',
-  'C,H': 'cement.jpg',
-  TT: 'generation.jpg'
+  ports: [77, 208, 225, 160]
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -52,15 +36,39 @@ function normalizeSubparts(subparts) {
     .join(',');
 }
 
-function getFacilityIcon(feature) {
-  const subparts = normalizeSubparts(feature?.properties?.subparts);
-  const iconName = ICON_BY_SUBPARTS[subparts] || DEFAULT_ICON;
-  return {
-    url: `../geo-icons/old/${iconName}`,
-    width: 128,
-    height: 128,
-    anchorY: 128,
-    mask: false
+function iconNameToFile(iconName) {
+  if (typeof iconName !== 'string' || iconName.length === 0) {
+    return 'manufacturing.jpg';
+  }
+  if (iconName.includes('.')) {
+    return iconName;
+  }
+  return `${iconName}.png`;
+}
+
+function buildFacilityIconResolver(manifest) {
+  const iconConfig = manifest.icons || {};
+  const iconsBaseDir = iconConfig.base_dir || 'geo-icons';
+  const bySubpartsRaw = iconConfig.by_subparts || {};
+  const defaultIconName = iconConfig.default || 'manufacturing';
+
+  const bySubparts = {};
+  Object.entries(bySubpartsRaw).forEach(([subparts, iconName]) => {
+    bySubparts[normalizeSubparts(subparts)] = iconNameToFile(iconName);
+  });
+
+  const defaultIconFile = iconNameToFile(defaultIconName);
+
+  return (feature) => {
+    const subparts = normalizeSubparts(feature?.properties?.subparts);
+    const iconFile = bySubparts[subparts] || defaultIconFile;
+    return {
+      url: `../${iconsBaseDir}/${iconFile}`,
+      width: 128,
+      height: 128,
+      anchorY: 128,
+      mask: false
+    };
   };
 }
 
@@ -83,6 +91,7 @@ function clampToVirginia(viewState, bounds) {
     const boundaryFeatures = boundaryGeoJson.features || [];
     const terrainBounds = manifest.bounds;
     const terrainExtensions = MaskExtension ? [new MaskExtension()] : [];
+    const getFacilityIcon = buildFacilityIconResolver(manifest);
 
     const viewState = {
       longitude: manifest.center[0],
