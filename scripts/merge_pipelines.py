@@ -50,7 +50,7 @@ def merge_geojson_chunks(raw_dir, output_path):
 
 if __name__ == "__main__":
 
-    RAW_DIR = "layers/natural_gas_pipelines/raw"
-    OUTPUT = "layers/natural_gas_pipelines/pipelines_us.gpkg"
+    RAW_DIR = "geo-layers/natural_gas_pipelines/raw"
+    OUTPUT = "geo-layers/natural_gas_pipelines/pipelines_us.gpkg"
 
     merge_geojson_chunks(RAW_DIR, OUTPUT)

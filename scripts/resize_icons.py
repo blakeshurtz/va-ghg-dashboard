@@ -52,12 +52,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate small icon versions for map labels")
     parser.add_argument(
         "--input-dir",
-        default="icons/original",
+        default="geo-icons/original",
         help="Directory containing source icons",
     )
     parser.add_argument(
         "--output-dir",
-        default="icons/small",
+        default="geo-icons/small",
         help="Directory to write resized icon files",
     )
     parser.add_argument(
