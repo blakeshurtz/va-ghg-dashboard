@@ -34,9 +34,9 @@ The project renders a single PNG map showing the Virginia boundary, reference la
 │   ├── render.py             # Render orchestration
 │   ├── resize_icons.py       # Icon preprocessing utility
 │   └── merge_pipelines.py    # GeoJSON merge utility
+├── boundaries/               # State/census boundary layers
+│   └── va_boundary_20m.geojson
 ├── data/
-│   ├── boundaries/
-│   │   └── va_boundary_20m.geojson
 │   ├── curated/
 │   │   ├── facilities_va_validated.csv
 │   │   └── rejects/
@@ -94,6 +94,14 @@ Output: `output/va_ghg_map.png`
 - `style`: `background`, `boundary_linewidth`, `boundary_alpha`
 
 If configured, `paths.emissions_csv` must point to an existing file.
+
+---
+
+
+## Data sources
+
+- EPA GHGRP FLIGHT Tool: https://ghgdata.epa.gov/flight/?viewType=line
+- US Census TIGER Boundaries: https://www2.census.gov/geo/tiger/GENZ2023/shp/
 
 ---
 
