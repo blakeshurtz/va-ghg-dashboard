@@ -116,7 +116,7 @@ function clampToVirginia(viewState, bounds) {
       new TerrainLayer({
         id: 'terrain',
         elevationData: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-        texture: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        texture: 'https://basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
         bounds: terrainBounds,
         extensions: terrainExtensions,
         maskId: 'va-mask',
