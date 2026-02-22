@@ -227,6 +227,9 @@ function clampToVirginia(viewState, bounds) {
             html: `<strong>${props.facility_name || 'Facility'}</strong><br/>Subparts: ${props.subparts || 'N/A'}<br/>GHG: ${formatTons(props.ghg_quantity_metric_tons_co2e)} tCO2e`
           };
         }
+        if (layer.id === 'boundary') {
+          return null;
+        }
         return {text: LAYER_LABELS[layer.id] || layer.id};
       }
     });
