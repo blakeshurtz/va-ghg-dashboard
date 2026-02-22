@@ -9,6 +9,15 @@ const COLORS = {
   ports: [77, 208, 225, 160]
 };
 
+const LAYER_LABELS = {
+  boundary: 'Virginia state boundary',
+  pipelines: 'Natural gas pipelines',
+  railroads: 'Railroads',
+  'primary-roads': 'Primary roads',
+  'incorporated-places': 'Incorporated places',
+  ports: 'Principal ports'
+};
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 async function loadJson(path) {
@@ -138,7 +147,8 @@ function clampToVirginia(viewState, bounds) {
         getFillColor: [0, 0, 0, 0],
         getLineColor: COLORS.boundary,
         getLineWidth: 120,
-        lineWidthMinPixels: 1
+        lineWidthMinPixels: 1,
+        pickable: true
       }),
       new GeoJsonLayer({
         id: 'pipelines',
@@ -147,7 +157,8 @@ function clampToVirginia(viewState, bounds) {
         filled: false,
         getLineColor: COLORS.pipelines,
         getLineWidth: 80,
-        lineWidthMinPixels: 1
+        lineWidthMinPixels: 1,
+        pickable: true
       }),
       new GeoJsonLayer({
         id: 'railroads',
@@ -156,7 +167,8 @@ function clampToVirginia(viewState, bounds) {
         filled: false,
         getLineColor: COLORS.railroads,
         getLineWidth: 50,
-        lineWidthMinPixels: 1
+        lineWidthMinPixels: 1,
+        pickable: true
       }),
       new GeoJsonLayer({
         id: 'primary-roads',
@@ -165,7 +177,8 @@ function clampToVirginia(viewState, bounds) {
         filled: false,
         getLineColor: COLORS.roads,
         getLineWidth: 95,
-        lineWidthMinPixels: 1
+        lineWidthMinPixels: 1,
+        pickable: true
       }),
       new GeoJsonLayer({
         id: 'incorporated-places',
@@ -174,7 +187,8 @@ function clampToVirginia(viewState, bounds) {
         filled: false,
         getLineColor: COLORS.places,
         getLineWidth: 40,
-        lineWidthMinPixels: 1
+        lineWidthMinPixels: 1,
+        pickable: true
       }),
       new GeoJsonLayer({
         id: 'ports',
@@ -201,6 +215,7 @@ function clampToVirginia(viewState, bounds) {
       container: 'app',
       mapStyle: null,
       controller: true,
+      pickingRadius: 8,
       initialViewState: viewState,
       onViewStateChange: ({viewState: next}) => clampToVirginia(next, manifest.bounds),
       layers,
@@ -212,7 +227,7 @@ function clampToVirginia(viewState, bounds) {
             html: `<strong>${props.facility_name || 'Facility'}</strong><br/>Subparts: ${props.subparts || 'N/A'}<br/>GHG: ${formatTons(props.ghg_quantity_metric_tons_co2e)} tCO2e`
           };
         }
-        return {text: layer.id};
+        return {text: LAYER_LABELS[layer.id] || layer.id};
       }
     });
   } catch (error) {
