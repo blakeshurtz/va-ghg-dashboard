@@ -215,6 +215,7 @@ function clampToVirginia(viewState, bounds) {
       container: 'app',
       mapStyle: null,
       controller: true,
+      pickingRadius: 8,
       initialViewState: viewState,
       onViewStateChange: ({viewState: next}) => clampToVirginia(next, manifest.bounds),
       layers,
