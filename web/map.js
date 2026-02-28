@@ -1,5 +1,7 @@
 const {DeckGL, TerrainLayer, GeoJsonLayer, IconLayer, MaskExtension} = deck;
 
+const ENABLE_STARTUP_TOUR = true;
+
 const COLORS = {
   boundary: [143, 166, 189, 220],
   pipelines: [157, 0, 255, 120],
@@ -112,6 +114,37 @@ function clampToVirginia(viewState, bounds) {
       bearing: 0
     };
 
+    const startupTourKeyframes = [
+      {
+        longitude: -79.2,
+        latitude: 37.8,
+        zoom: 7.1,
+        pitch: 0,
+        bearing: 0,
+        duration: 2000
+      },
+      {
+        longitude: -77.436,
+        latitude: 37.54,
+        zoom: 9.1,
+        pitch: 30,
+        bearing: 12,
+        duration: 2200
+      },
+      {
+        longitude: -76.29,
+        latitude: 36.85,
+        zoom: 9.6,
+        pitch: 24,
+        bearing: -10,
+        duration: 2200
+      },
+      {
+        ...viewState,
+        duration: 2500
+      }
+    ];
+
     const layers = [
       new GeoJsonLayer({
         id: 'va-mask',
@@ -211,13 +244,33 @@ function clampToVirginia(viewState, bounds) {
       })
     ];
 
-    new DeckGL({
+    let userInteracted = false;
+    const markUserInteracted = () => {
+      userInteracted = true;
+    };
+
+    const appElement = document.getElementById('app');
+    appElement?.addEventListener('pointerdown', markUserInteracted, {once: true});
+    appElement?.addEventListener('wheel', markUserInteracted, {once: true, passive: true});
+
+    const deckgl = new DeckGL({
       container: 'app',
       mapStyle: null,
       controller: true,
       pickingRadius: 8,
       initialViewState: viewState,
-      onViewStateChange: ({viewState: next}) => clampToVirginia(next, manifest.bounds),
+      onViewStateChange: ({viewState: next, interactionState}) => {
+        if (
+          interactionState &&
+          (interactionState.isDragging ||
+            interactionState.isPanning ||
+            interactionState.isRotating ||
+            interactionState.isZooming)
+        ) {
+          markUserInteracted();
+        }
+        return clampToVirginia(next, manifest.bounds);
+      },
       layers,
       getTooltip: ({object, layer}) => {
         if (!object) return null;
@@ -233,6 +286,30 @@ function clampToVirginia(viewState, bounds) {
         return {text: LAYER_LABELS[layer.id] || layer.id};
       }
     });
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const runStartupTour = async () => {
+      for (const keyframe of startupTourKeyframes) {
+        if (userInteracted) {
+          break;
+        }
+
+        const {duration, ...targetViewState} = keyframe;
+        deckgl.setProps({
+          viewState: {
+            ...targetViewState,
+            transitionDuration: duration,
+            transitionInterpolator: new deck.FlyToInterpolator()
+          }
+        });
+
+        await sleep(duration + 50);
+      }
+    };
+
+    if (ENABLE_STARTUP_TOUR) {
+      runStartupTour();
+    }
   } catch (error) {
     document.getElementById('app').innerHTML = `<div style="color:#d8e2ee;padding:16px;">${error.message}</div>`;
     console.error(error);
