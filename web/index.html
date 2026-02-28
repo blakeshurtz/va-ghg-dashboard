@@ -6,14 +6,34 @@
     <title>VA GHG Dashboard - deck.gl</title>
     <style>
       html,
-      body,
-      #app {
+      body {
         margin: 0;
         width: 100%;
         height: 100%;
         overflow: hidden;
         background: #0b0f14;
         font-family: Inter, system-ui, sans-serif;
+      }
+      #layout {
+        display: flex;
+        width: 100%;
+        height: 100%;
+      }
+      #app {
+        flex: 2;
+        position: relative;
+        overflow: hidden;
+      }
+      #sidebar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #111720;
+        border-left: 1px solid rgba(162, 186, 212, 0.15);
+        overflow-y: auto;
+        color: #d8e2ee;
+        padding: 24px 20px;
+        box-sizing: border-box;
       }
       .tooltip {
         position: fixed;
@@ -29,7 +49,13 @@
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="layout">
+      <div id="app"></div>
+      <div id="sidebar">
+        <h2 style="margin:0 0 8px;font-size:15px;font-weight:600;color:#a2bad4;letter-spacing:0.04em;text-transform:uppercase;">VA GHG Dashboard</h2>
+        <p style="margin:0 0 24px;font-size:12px;color:#6b8099;">Virginia greenhouse gas facilities &amp; infrastructure</p>
+      </div>
+    </div>
     <script src="https://unpkg.com/deck.gl@^9.0.0/dist.min.js"></script>
     <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script type="module" src="./map.js"></script>
